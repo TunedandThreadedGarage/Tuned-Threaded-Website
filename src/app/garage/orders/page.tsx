@@ -1,51 +1,39 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { loadOrders } from "@/features/settings/actions";
+import { OrderHistory } from "@/features/settings/components/OrderHistory";
 
 export default async function OrdersPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/garage/sign-in");
+  if (!user) redirect("/garage/sign-in?next=/garage/orders");
 
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  const { orders, error } = await loadOrders();
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-text">
-          Orders
+        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-metal">
+          Store
+        </p>
+        <h2 className="mt-1 font-[family-name:var(--font-display)] text-xl font-semibold text-text">
+          Order History
         </h2>
         <p className="mt-1 text-sm text-text-muted">
-          Placeholder history — wired for the future shop.
+          Status, tracking, carrier, estimated delivery, items, invoices, and
+          receipts — always know where your order is.
         </p>
       </div>
 
-      {orders && orders.length > 0 ? (
-        <ul className="divide-y divide-border border border-border">
-          {orders.map((order) => (
-            <li key={order.id} className="px-4 py-4">
-              <p className="text-sm font-medium text-text">
-                {order.summary ?? `Order ${order.id.slice(0, 8)}`}
-              </p>
-              <p className="mt-1 text-xs text-text-muted">
-                {order.status} · ${(order.total_cents / 100).toFixed(2)} ·{" "}
-                {new Date(order.created_at).toLocaleDateString()}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <EmptyState
-          title="No orders yet"
-          description="When the shop opens, your history will live here."
-        />
-      )}
+      {error ? (
+        <p className="text-sm text-accent" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      <OrderHistory orders={orders} />
     </div>
   );
 }

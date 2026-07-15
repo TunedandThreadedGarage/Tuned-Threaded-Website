@@ -41,6 +41,14 @@ export async function signUpWithEmail(
 
   if (error) return { error: error.message };
 
+  // Branded welcome — fires as soon as the account exists.
+  try {
+    const { sendWelcomeEmail } = await import("@/lib/email/dispatch");
+    await sendWelcomeEmail(email);
+  } catch {
+    // Welcome email is best-effort; never block signup.
+  }
+
   // Instant session when "Confirm email" is disabled in Supabase.
   if (data.session) {
     redirect("/garage/onboarding");
