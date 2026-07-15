@@ -1,8 +1,31 @@
+"use client";
+
+import { LayoutGroup } from "framer-motion";
+import { CommunitySection } from "@/components/home/CommunitySection";
+import { FeaturedCategories } from "@/components/home/FeaturedCategories";
+import { FeaturedProducts } from "@/components/home/FeaturedProducts";
+import { Hero } from "@/components/home/Hero";
+import { Newsletter } from "@/components/home/Newsletter";
+import { GarageExperience } from "@/components/garage/GarageExperience";
+import { SiteFooter } from "@/components/layout/SiteFooter";
+import { SiteHeader } from "@/components/layout/SiteHeader";
+
 export default function Home() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 py-24">
-      <h1 className="text-3xl font-semibold tracking-tight">Tuned &amp; Threaded</h1>
-      <p className="mt-3 text-zinc-600">Coming soon.</p>
-    </main>
+    <LayoutGroup id="tt-garage-logo">
+      <GarageExperience>
+        <SiteHeader />
+        <main className="flex-1">
+          <Hero />
+          <FeaturedCategories />
+          <CommunitySection />
+          <FeaturedProducts />
+          <div id="builds" className="sr-only" aria-hidden />
+          <div id="journal" className="sr-only" aria-hidden />
+          <Newsletter />
+        </main>
+        <SiteFooter />
+      </GarageExperience>
+    </LayoutGroup>
   );
 }

@@ -1,0 +1,18 @@
+export const GARAGE_RESERVED = new Set([
+  "sign-in",
+  "sign-up",
+  "onboarding",
+  "settings",
+  "journal",
+  "builds",
+  "wishlist",
+  "cart",
+  "orders",
+  "notifications",
+  "discover",
+  "gallery",
+  "vehicles",
+  "followers",
+  "following",
+  "saved",
+]);

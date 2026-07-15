@@ -1,57 +1,71 @@
 # Tuned & Threaded
 
-Official website project for **Tuned & Threaded**.
-
-This repository currently contains the application scaffold only. Marketing UI and content will be added in a later phase.
+Official website for **Tuned & Threaded** — premium garage lifestyle brand with a **Garage Profile** member system.
 
 ## Stack
 
-- [Next.js](https://nextjs.org/) (App Router)
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- ESLint
+- Next.js (App Router) · TypeScript · Tailwind CSS · Framer Motion
+- Supabase Auth · Postgres · Storage · RLS
 
 ## Getting started
 
 ```bash
 npm install
+cp .env.example .env.local
+# Paste your Supabase Project URL and anon key into .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+## Supabase setup
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Copy **Project URL** and **anon / publishable** key into `.env.local`:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. In the SQL Editor, run migrations **in order**:
+   - [`supabase/migrations/20260714_garage_profile_foundation.sql`](supabase/migrations/20260714_garage_profile_foundation.sql)
+   - [`supabase/migrations/20260715_storage_buckets.sql`](supabase/migrations/20260715_storage_buckets.sql) (if buckets missing)
+   - [`supabase/migrations/20260715_garage_profile_centerpiece.sql`](supabase/migrations/20260715_garage_profile_centerpiece.sql) **required for vehicles pages, badges, timeline, gallery**
+4. Follow **[docs/AUTH_SETUP.md](docs/AUTH_SETUP.md)** — especially:
+   - Site URL + redirect `http://localhost:3000/auth/callback`
+   - Disable **Confirm email** while developing (avoids email rate limits)
+   - Enable Google / Apple / Discord later when ready
+5. Confirm Storage buckets `avatars`, `banners`, `builds`, and `garage` exist.
+
+## Garage Profile routes
+
+| Path | Description |
+|------|-------------|
+| `/garage/sign-up` · `/garage/sign-in` | Auth |
+| `/garage/onboarding` | Username + display name |
+| `/garage` | Your Garage Profile (hero, stats, vehicles, builds, gallery) |
+| `/garage/discover` | Community builds + members |
+| `/garage/[username]` | Public profile |
+| `/garage/[username]/vehicles/[id]` | Dedicated vehicle page |
+| `/garage/[username]/gallery` | Public gallery |
+| `/garage/[username]/followers` · `.../following` | Social lists |
+| `/garage/gallery` | Manage albums & photos |
+| `/garage/settings` | Profile customization, vehicles, parts |
+| `/garage/builds` · `/garage/builds/new` · `/garage/builds/[id]` | Builds (progress, save, share) |
+| `/garage/journal` | Private journal |
+| `/garage/wishlist` · `/garage/cart` · `/garage/orders` | Commerce scaffolds |
+| `/garage/notifications` | Alerts |
+| `/auth/callback` | OAuth PKCE callback |
+
+Auth providers are registered in [`src/features/auth/providers.ts`](src/features/auth/providers.ts) — modular for future providers.
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start the development server |
-| `npm run build` | Create a production build |
-| `npm run start` | Serve the production build |
-| `npm run lint` | Run ESLint |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run start` | Serve production build |
+| `npm run lint` | ESLint |
 
-## Project structure
+## Brand
 
-```text
-src/
-├── app/           # App Router routes and layouts
-├── components/    # Shared UI and layout components
-│   ├── layout/
-│   └── ui/
-├── features/      # Feature-oriented modules
-├── hooks/         # Shared React hooks
-├── lib/           # Utilities and shared helpers
-├── styles/        # Shared styles beyond globals
-└── types/         # Shared TypeScript types
-```
-
-## Environment
-
-Copy `.env.example` to `.env.local` and fill in values as needed:
-
-```bash
-cp .env.example .env.local
-```
+Read [`BRAND.md`](BRAND.md) before UI work.
 
 ## Repository
 
