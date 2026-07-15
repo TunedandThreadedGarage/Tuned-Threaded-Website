@@ -17,15 +17,21 @@ export function computeReputation(input: {
 }
 
 export function sumVehicleHorsepower(vehicles: Pick<Vehicle, "current_hp">[]): number {
-  return vehicles.reduce((sum, v) => sum + (v.current_hp ?? 0), 0);
+  return vehicles.reduce<number>((sum, v) => sum + (v.current_hp ?? 0), 0);
 }
 
 export function estimateInvestedCents(
   modifications: Pick<Modification, "cost_cents">[],
   timelineCosts: (number | null)[],
 ): number {
-  const modTotal = modifications.reduce((sum, m) => sum + (m.cost_cents ?? 0), 0);
-  const timelineTotal = timelineCosts.reduce((sum, c) => sum + (c ?? 0), 0);
+  const modTotal = modifications.reduce<number>(
+    (sum, m) => sum + (m.cost_cents ?? 0),
+    0,
+  );
+  const timelineTotal = timelineCosts.reduce<number>(
+    (sum, c) => sum + (c ?? 0),
+    0,
+  );
   return modTotal + timelineTotal;
 }
 
