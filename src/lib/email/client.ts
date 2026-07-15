@@ -27,11 +27,9 @@ export async function sendEmail(
   input: SendEmailInput,
 ): Promise<SendEmailResult> {
   if (!process.env.RESEND_API_KEY) {
-    if (process.env.NODE_ENV !== "production") {
-      console.info(
-        `[email:skipped] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to}`,
-      );
-    }
+    console.warn(
+      `[email:skipped:no-key] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to}`,
+    );
     return { ok: true, skipped: true };
   }
 
@@ -43,12 +41,19 @@ export async function sendEmail(
       subject: input.subject,
       html: input.html,
     });
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      console.error(
+        `[email:fail] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to}: ${error.message}`,
+      );
+      return { ok: false, error: error.message };
+    }
+    console.info(
+      `[email:sent] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to} id=${data?.id}`,
+    );
     return { ok: true, id: data?.id };
   } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Email send failed.",
-    };
+    const message = e instanceof Error ? e.message : "Email send failed.";
+    console.error(`[email:exception] ${input.subject}: ${message}`);
+    return { ok: false, error: message };
   }
 }
