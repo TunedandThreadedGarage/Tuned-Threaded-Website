@@ -12,7 +12,7 @@ const LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/garage/wishlist", label: "Wishlist" },
   { href: "/garage/cart", label: "Cart" },
   { href: "/garage/orders", label: "Orders" },
-  { href: "/garage/notifications", label: "Alerts" },
+  { href: "/notifications", label: "Alerts" },
   { href: "/garage/settings", label: "Settings" },
 ];
 

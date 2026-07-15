@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/garage/BrandLogo";
 import { useGarage } from "@/components/garage/GarageExperience";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { siteNavLinks } from "@/lib/site";
 
 function IconSearch({ className }: { className?: string }) {
@@ -102,6 +103,7 @@ export function SiteHeader() {
           >
             <IconSearch className="h-[18px] w-[18px]" />
           </button>
+          <NotificationBell />
           <Link
             href="/garage"
             aria-label="Garage Profile"
@@ -155,7 +157,10 @@ export function SiteHeader() {
                 {link.label}
               </Link>
             ))}
-            <div className="mt-4 flex gap-6 pt-2 text-sm text-text-muted">
+            <div className="mt-4 flex flex-wrap gap-6 pt-2 text-sm text-text-muted">
+              <Link href="/notifications" onClick={() => setMenuOpen(false)}>
+                Notifications
+              </Link>
               <Link href="/garage" onClick={() => setMenuOpen(false)}>
                 Garage Profile
               </Link>

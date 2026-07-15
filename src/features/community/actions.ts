@@ -10,6 +10,8 @@ import type {
   Vehicle,
 } from "@/types/database";
 import type { CommunityTab } from "@/features/community/constants";
+import { createNotification } from "@/lib/notify";
+import { NOTIFICATION_ACTION_LABEL } from "@/features/notifications/constants";
 
 export type ActionResult = { error?: string; success?: boolean; id?: string };
 
@@ -470,7 +472,7 @@ export async function toggleCommunityLike(
       });
       const { data: post } = await supabase
         .from("community_posts")
-        .select("user_id")
+        .select("user_id, media_urls")
         .eq("id", postId)
         .maybeSingle();
       if (post && post.user_id !== user.id) {
@@ -479,12 +481,25 @@ export async function toggleCommunityLike(
           .select("username, display_name")
           .eq("id", user.id)
           .maybeSingle();
+        const who = me?.display_name ?? me?.username ?? "Someone";
+        const thumb = post.media_urls?.[0] ?? null;
         await supabase.from("community_notifications").insert({
           user_id: post.user_id,
           actor_id: user.id,
           type: "like",
           post_id: postId,
-          message: `${me?.display_name ?? me?.username ?? "Someone"} liked your post.`,
+          message: `${who} liked your post.`,
+        });
+        await createNotification(supabase, {
+          userId: post.user_id,
+          actorId: user.id,
+          type: "post_like",
+          entityType: "community_post",
+          entityId: postId,
+          action: NOTIFICATION_ACTION_LABEL.post_like,
+          message: `${who} liked your post.`,
+          href: `/community?post=${postId}`,
+          thumbnailUrl: thumb,
         });
       }
     }
@@ -560,17 +575,51 @@ export async function addCommunityComment(
       .eq("id", user.id)
       .maybeSingle();
 
+    const who = me?.display_name ?? me?.username ?? "Someone";
     if (post && post.user_id !== user.id) {
+      const kind = parentId ? "reply" : "comment";
       await supabase.from("community_notifications").insert({
         user_id: post.user_id,
         actor_id: user.id,
-        type: parentId ? "reply" : "comment",
+        type: kind,
         post_id: postId,
         comment_id: data.id,
-        message: `${me?.display_name ?? me?.username ?? "Someone"} ${
-          parentId ? "replied to" : "commented on"
-        } your post.`,
+        message: `${who} ${parentId ? "replied to" : "commented on"} your post.`,
       });
+      await createNotification(supabase, {
+        userId: post.user_id,
+        actorId: user.id,
+        type: kind,
+        entityType: "community_post",
+        entityId: postId,
+        action: NOTIFICATION_ACTION_LABEL[kind],
+        message: `${who} ${parentId ? "replied to" : "commented on"} your post.`,
+        href: `/community?post=${postId}`,
+      });
+    }
+
+    if (parentId) {
+      const { data: parent } = await supabase
+        .from("community_comments")
+        .select("user_id")
+        .eq("id", parentId)
+        .maybeSingle();
+      if (
+        parent &&
+        parent.user_id !== user.id &&
+        parent.user_id !== post?.user_id
+      ) {
+        await createNotification(supabase, {
+          userId: parent.user_id,
+          actorId: user.id,
+          type: "reply",
+          entityType: "community_post",
+          entityId: postId,
+          action: NOTIFICATION_ACTION_LABEL.reply,
+          message: `${who} replied to your comment.`,
+          href: `/community?post=${postId}`,
+        });
+      }
     }
 
     const mentionMatches = body.match(/@([a-z0-9_]+)/gi) ?? [];
@@ -588,7 +637,17 @@ export async function addCommunityComment(
           type: "mention",
           post_id: postId,
           comment_id: data.id,
-          message: `${me?.display_name ?? me?.username ?? "Someone"} mentioned you.`,
+          message: `${who} mentioned you.`,
+        });
+        await createNotification(supabase, {
+          userId: mentioned.id,
+          actorId: user.id,
+          type: "mention",
+          entityType: "community_post",
+          entityId: postId,
+          action: NOTIFICATION_ACTION_LABEL.mention,
+          message: `${who} mentioned you.`,
+          href: `/community?post=${postId}`,
         });
       }
     }

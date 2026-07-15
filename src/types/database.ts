@@ -132,6 +132,9 @@ export type Notification = {
   entity_type: string | null;
   entity_id: string | null;
   message: string;
+  action: string | null;
+  href: string | null;
+  thumbnail_url: string | null;
   read_at: string | null;
   created_at: string;
 };
@@ -624,8 +627,14 @@ export type Database = {
       follows: { Row: Follow; Insert: Follow; Update: Partial<Follow> };
       notifications: {
         Row: Notification;
-        Insert: Omit<Notification, "id" | "created_at" | "read_at"> & {
+        Insert: Omit<
+          Notification,
+          "id" | "created_at" | "read_at" | "action" | "href" | "thumbnail_url"
+        > & {
           id?: string;
+          action?: string | null;
+          href?: string | null;
+          thumbnail_url?: string | null;
         };
         Update: Partial<Notification>;
       };

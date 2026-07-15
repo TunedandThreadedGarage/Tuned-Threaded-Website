@@ -6,6 +6,8 @@ import {
   evaluateAndAwardBadges,
   refreshReputationCache,
 } from "@/lib/garage-badges";
+import { actorLabel, createNotification } from "@/lib/notify";
+import { NOTIFICATION_ACTION_LABEL } from "@/features/notifications/constants";
 
 export type ActionResult = { error?: string; success?: boolean };
 
@@ -34,21 +36,24 @@ export async function followUser(followingId: string): Promise<ActionResult> {
       .select("username, display_name")
       .eq("id", user.id)
       .single();
+    const who = me?.display_name ?? me?.username ?? "Someone";
 
-    await supabase.from("notifications").insert({
-      user_id: followingId,
-      actor_id: user.id,
-      type: "follow",
-      entity_type: "profile",
-      entity_id: user.id,
-      message: `${me?.display_name ?? me?.username ?? "Someone"} started following you.`,
+    await createNotification(supabase, {
+      userId: followingId,
+      actorId: user.id,
+      type: "garage_follow",
+      entityType: "profile",
+      entityId: user.id,
+      action: NOTIFICATION_ACTION_LABEL.garage_follow,
+      message: `${who} started following you.`,
+      href: me?.username ? `/garage/${me.username}` : "/garage",
     });
 
     await supabase.from("community_notifications").insert({
       user_id: followingId,
       actor_id: user.id,
       type: "follow",
-      message: `${me?.display_name ?? me?.username ?? "Someone"} started following you.`,
+      message: `${who} started following you.`,
     });
 
     await evaluateAndAwardBadges(supabase, followingId);
@@ -107,18 +112,24 @@ export async function toggleBuildLike(buildId: string): Promise<ActionResult> {
         .single();
 
       if (build && build.user_id !== user.id) {
-        const { data: me } = await supabase
-          .from("profiles")
-          .select("display_name, username")
-          .eq("id", user.id)
-          .single();
-        await supabase.from("notifications").insert({
-          user_id: build.user_id,
-          actor_id: user.id,
-          type: "like",
-          entity_type: "build",
-          entity_id: buildId,
-          message: `${me?.display_name ?? me?.username ?? "Someone"} liked your build “${build.title}”.`,
+        const who = await actorLabel(supabase, user.id);
+        const { data: cover } = await supabase
+          .from("build_photos")
+          .select("url")
+          .eq("build_id", buildId)
+          .order("sort_order", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        await createNotification(supabase, {
+          userId: build.user_id,
+          actorId: user.id,
+          type: "build_like",
+          entityType: "build",
+          entityId: buildId,
+          action: NOTIFICATION_ACTION_LABEL.build_like,
+          message: `${who} liked your build “${build.title}”.`,
+          href: `/builds/${buildId}`,
+          thumbnailUrl: cover?.url ?? null,
         });
       }
     }
@@ -154,18 +165,16 @@ export async function addBuildComment(
       .single();
 
     if (build && build.user_id !== user.id) {
-      const { data: me } = await supabase
-        .from("profiles")
-        .select("display_name, username")
-        .eq("id", user.id)
-        .single();
-      await supabase.from("notifications").insert({
-        user_id: build.user_id,
-        actor_id: user.id,
+      const who = await actorLabel(supabase, user.id);
+      await createNotification(supabase, {
+        userId: build.user_id,
+        actorId: user.id,
         type: "comment",
-        entity_type: "build",
-        entity_id: buildId,
-        message: `${me?.display_name ?? me?.username ?? "Someone"} commented on “${build.title}”.`,
+        entityType: "build",
+        entityId: buildId,
+        action: NOTIFICATION_ACTION_LABEL.comment,
+        message: `${who} commented on “${build.title}”.`,
+        href: `/builds/${buildId}`,
       });
     }
 
@@ -178,19 +187,10 @@ export async function addBuildComment(
 }
 
 export async function markNotificationRead(id: string): Promise<ActionResult> {
-  try {
-    const { supabase, user } = await requireUser();
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("id", id)
-      .eq("user_id", user.id);
-    if (error) return { error: error.message };
-    revalidatePath("/garage/notifications");
-    return { success: true };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Failed." };
-  }
+  const { markNotificationRead: mark } = await import(
+    "@/features/notifications/actions"
+  );
+  return mark(id);
 }
 
 export async function toggleTimelineLike(entryId: string): Promise<ActionResult> {
@@ -265,6 +265,32 @@ export async function toggleSaveBuild(buildId: string): Promise<ActionResult> {
         build_id: buildId,
         user_id: user.id,
       });
+      const { data: build } = await supabase
+        .from("builds")
+        .select("user_id, title")
+        .eq("id", buildId)
+        .maybeSingle();
+      if (build && build.user_id !== user.id) {
+        const who = await actorLabel(supabase, user.id);
+        const { data: cover } = await supabase
+          .from("build_photos")
+          .select("url")
+          .eq("build_id", buildId)
+          .order("sort_order", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        await createNotification(supabase, {
+          userId: build.user_id,
+          actorId: user.id,
+          type: "build_save",
+          entityType: "build",
+          entityId: buildId,
+          action: NOTIFICATION_ACTION_LABEL.build_save,
+          message: `${who} saved your build “${build.title}”.`,
+          href: `/builds/${buildId}`,
+          thumbnailUrl: cover?.url ?? null,
+        });
+      }
     }
     revalidatePath(`/garage/builds/${buildId}`);
     return { success: true };

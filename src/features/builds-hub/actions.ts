@@ -104,6 +104,8 @@ async function notifyBuildFollowers(
   actorId: string,
   type: string,
   message: string,
+  action?: string,
+  thumbnailUrl?: string | null,
 ) {
   const supabase = await createClient();
   const { data: followers } = await supabase
@@ -115,14 +117,19 @@ async function notifyBuildFollowers(
   );
   if (ownerId !== actorId) targets.add(ownerId);
   if (targets.size === 0) return;
-  await supabase.from("notifications").insert(
-    [...targets].map((user_id) => ({
-      user_id,
-      actor_id: actorId,
+  const { createNotifications } = await import("@/lib/notify");
+  await createNotifications(
+    supabase,
+    [...targets].map((userId) => ({
+      userId,
+      actorId,
       type,
-      entity_type: "build",
-      entity_id: buildId,
+      entityType: "build",
+      entityId: buildId,
       message,
+      action: action ?? null,
+      href: `/builds/${buildId}`,
+      thumbnailUrl: thumbnailUrl ?? null,
     })),
   );
 }
@@ -631,13 +638,20 @@ export async function toggleBuildFollow(buildId: string): Promise<ActionResult> 
         .eq("id", user.id)
         .maybeSingle();
       if (build && build.user_id !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: build.user_id,
-          actor_id: user.id,
+        const { createNotification } = await import("@/lib/notify");
+        const { NOTIFICATION_ACTION_LABEL } = await import(
+          "@/features/notifications/constants"
+        );
+        const who = me?.display_name ?? me?.username ?? "Someone";
+        await createNotification(supabase, {
+          userId: build.user_id,
+          actorId: user.id,
           type: "build_follow",
-          entity_type: "build",
-          entity_id: buildId,
-          message: `${me?.display_name ?? me?.username ?? "Someone"} followed your build “${build.title}”.`,
+          entityType: "build",
+          entityId: buildId,
+          action: NOTIFICATION_ACTION_LABEL.build_follow,
+          message: `${who} followed your build “${build.title}”.`,
+          href: `/builds/${buildId}`,
         });
       }
     }
@@ -680,13 +694,20 @@ export async function toggleHubBuildLike(buildId: string): Promise<ActionResult>
         .eq("id", user.id)
         .maybeSingle();
       if (build && build.user_id !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: build.user_id,
-          actor_id: user.id,
+        const { createNotification } = await import("@/lib/notify");
+        const { NOTIFICATION_ACTION_LABEL } = await import(
+          "@/features/notifications/constants"
+        );
+        const who = me?.display_name ?? me?.username ?? "Someone";
+        await createNotification(supabase, {
+          userId: build.user_id,
+          actorId: user.id,
           type: "build_like",
-          entity_type: "build",
-          entity_id: buildId,
-          message: `${me?.display_name ?? me?.username ?? "Someone"} liked your build “${build.title}”.`,
+          entityType: "build",
+          entityId: buildId,
+          action: NOTIFICATION_ACTION_LABEL.build_like,
+          message: `${who} liked your build “${build.title}”.`,
+          href: `/builds/${buildId}`,
         });
       }
     }
@@ -732,14 +753,22 @@ export async function addHubBuildComment(
       .select("display_name, username")
       .eq("id", user.id)
       .maybeSingle();
+    const { createNotification } = await import("@/lib/notify");
+    const { NOTIFICATION_ACTION_LABEL } = await import(
+      "@/features/notifications/constants"
+    );
+    const who = me?.display_name ?? me?.username ?? "Someone";
     if (build && build.user_id !== user.id) {
-      await supabase.from("notifications").insert({
-        user_id: build.user_id,
-        actor_id: user.id,
-        type: parentId ? "build_reply" : "build_comment",
-        entity_type: "build",
-        entity_id: buildId,
-        message: `${me?.display_name ?? me?.username ?? "Someone"} commented on “${build.title}”.`,
+      const kind = parentId ? "reply" : "comment";
+      await createNotification(supabase, {
+        userId: build.user_id,
+        actorId: user.id,
+        type: kind,
+        entityType: "build",
+        entityId: buildId,
+        action: NOTIFICATION_ACTION_LABEL[kind],
+        message: `${who} commented on “${build.title}”.`,
+        href: `/builds/${buildId}`,
       });
     }
 
@@ -752,13 +781,15 @@ export async function addHubBuildComment(
         .eq("username", username)
         .maybeSingle();
       if (mentioned && mentioned.id !== user.id) {
-        await supabase.from("notifications").insert({
-          user_id: mentioned.id,
-          actor_id: user.id,
+        await createNotification(supabase, {
+          userId: mentioned.id,
+          actorId: user.id,
           type: "mention",
-          entity_type: "build",
-          entity_id: buildId,
-          message: `${me?.display_name ?? me?.username ?? "Someone"} mentioned you on a build.`,
+          entityType: "build",
+          entityId: buildId,
+          action: NOTIFICATION_ACTION_LABEL.mention,
+          message: `${who} mentioned you on a build.`,
+          href: `/builds/${buildId}`,
         });
       }
     }
