@@ -87,6 +87,13 @@ export type Build = {
   upcoming_stage: string | null;
   estimated_completion: string | null;
   status: BuildStatus;
+  cover_photo_url: string | null;
+  tags: string[];
+  view_count: number;
+  is_featured: boolean;
+  is_staff_pick: boolean;
+  labor_hours_cached: number | null;
+  invested_cents_cached: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -139,8 +146,107 @@ export type BuildComment = {
   id: string;
   build_id: string;
   user_id: string;
+  parent_id: string | null;
+  body: string;
+  image_url: string | null;
+  like_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BuildCommentLike = {
+  comment_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type BuildFollower = {
+  build_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type BuildTimelineEntry = {
+  id: string;
+  build_id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  entry_date: string;
+  photos: string[];
+  video_url: string | null;
+  parts_installed: string | null;
+  cost_cents: number | null;
+  hours_spent: number | null;
+  stage: string | null;
+  like_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BuildTimelineLike = {
+  entry_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type BuildTimelineComment = {
+  id: string;
+  entry_id: string;
+  user_id: string;
   body: string;
   created_at: string;
+  updated_at: string;
+};
+
+export type BuildVideo = {
+  id: string;
+  build_id: string;
+  user_id: string;
+  url: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type BuildPartStatus = "installed" | "wishlist";
+
+export type BuildPart = {
+  id: string;
+  build_id: string;
+  user_id: string;
+  brand: string | null;
+  name: string;
+  price_cents: number | null;
+  purchase_url: string | null;
+  install_date: string | null;
+  status: BuildPartStatus;
+  priority: number;
+  created_at: string;
+};
+
+export type BuildPerfType = "zero_sixty" | "top_speed" | "track";
+
+export type BuildPerformance = {
+  id: string;
+  build_id: string;
+  user_id: string;
+  result_date: string;
+  perf_type: BuildPerfType;
+  value_numeric: number;
+  unit: string;
+  notes: string | null;
+  created_at: string;
+};
+
+export type BuildGoals = {
+  build_id: string;
+  user_id: string;
+  current_goal: string | null;
+  next_goal: string | null;
+  long_term_goal: string | null;
+  budget_remaining_cents: number | null;
+  completion_pct: number;
   updated_at: string;
 };
 
@@ -417,11 +523,29 @@ export type Database = {
         Row: Build;
         Insert: Omit<
           Build,
-          "id" | "created_at" | "updated_at" | "progress_pct" | "status"
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "progress_pct"
+          | "status"
+          | "tags"
+          | "view_count"
+          | "is_featured"
+          | "is_staff_pick"
+          | "cover_photo_url"
+          | "labor_hours_cached"
+          | "invested_cents_cached"
         > & {
           id?: string;
           progress_pct?: number;
           status?: BuildStatus;
+          tags?: string[];
+          view_count?: number;
+          is_featured?: boolean;
+          is_staff_pick?: boolean;
+          cover_photo_url?: string | null;
+          labor_hours_cached?: number | null;
+          invested_cents_cached?: number | null;
         };
         Update: Partial<Build>;
       };
@@ -429,6 +553,66 @@ export type Database = {
         Row: BuildPhoto;
         Insert: Omit<BuildPhoto, "id" | "created_at"> & { id?: string };
         Update: Partial<BuildPhoto>;
+      };
+      build_followers: {
+        Row: BuildFollower;
+        Insert: BuildFollower;
+        Update: Partial<BuildFollower>;
+      };
+      build_timeline_entries: {
+        Row: BuildTimelineEntry;
+        Insert: Omit<
+          BuildTimelineEntry,
+          "id" | "created_at" | "updated_at" | "photos" | "like_count"
+        > & {
+          id?: string;
+          photos?: string[];
+          like_count?: number;
+        };
+        Update: Partial<BuildTimelineEntry>;
+      };
+      build_timeline_likes: {
+        Row: BuildTimelineLike;
+        Insert: BuildTimelineLike;
+        Update: Partial<BuildTimelineLike>;
+      };
+      build_timeline_comments: {
+        Row: BuildTimelineComment;
+        Insert: Omit<BuildTimelineComment, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+        };
+        Update: Partial<BuildTimelineComment>;
+      };
+      build_videos: {
+        Row: BuildVideo;
+        Insert: Omit<BuildVideo, "id" | "created_at"> & { id?: string };
+        Update: Partial<BuildVideo>;
+      };
+      build_parts: {
+        Row: BuildPart;
+        Insert: Omit<BuildPart, "id" | "created_at" | "status" | "priority"> & {
+          id?: string;
+          status?: BuildPartStatus;
+          priority?: number;
+        };
+        Update: Partial<BuildPart>;
+      };
+      build_performance: {
+        Row: BuildPerformance;
+        Insert: Omit<BuildPerformance, "id" | "created_at"> & { id?: string };
+        Update: Partial<BuildPerformance>;
+      };
+      build_goals: {
+        Row: BuildGoals;
+        Insert: Omit<BuildGoals, "updated_at" | "completion_pct"> & {
+          completion_pct?: number;
+        };
+        Update: Partial<BuildGoals>;
+      };
+      build_comment_likes: {
+        Row: BuildCommentLike;
+        Insert: BuildCommentLike;
+        Update: Partial<BuildCommentLike>;
       };
       journal_entries: {
         Row: JournalEntry;
@@ -452,8 +636,14 @@ export type Database = {
       };
       build_comments: {
         Row: BuildComment;
-        Insert: Omit<BuildComment, "id" | "created_at" | "updated_at"> & {
+        Insert: Omit<
+          BuildComment,
+          "id" | "created_at" | "updated_at" | "like_count" | "parent_id" | "image_url"
+        > & {
           id?: string;
+          like_count?: number;
+          parent_id?: string | null;
+          image_url?: string | null;
         };
         Update: Partial<BuildComment>;
       };

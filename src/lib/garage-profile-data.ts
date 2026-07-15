@@ -65,6 +65,13 @@ function normalizeBuild(raw: Build): Build {
     upcoming_stage: raw.upcoming_stage ?? null,
     estimated_completion: raw.estimated_completion ?? null,
     status: raw.status ?? "active",
+    cover_photo_url: raw.cover_photo_url ?? null,
+    tags: raw.tags ?? [],
+    view_count: raw.view_count ?? 0,
+    is_featured: raw.is_featured ?? false,
+    is_staff_pick: raw.is_staff_pick ?? false,
+    labor_hours_cached: raw.labor_hours_cached ?? null,
+    invested_cents_cached: raw.invested_cents_cached ?? null,
   };
 }
 
