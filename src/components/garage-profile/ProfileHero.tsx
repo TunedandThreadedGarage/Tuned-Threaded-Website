@@ -53,26 +53,28 @@ export function ProfileHero({
     >
       <Banner url={profile.banner_url} />
       <div className="relative pb-2">
-        <div className="-mt-14 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-end gap-5">
+        <div className="-mt-16 flex flex-col gap-6 sm:-mt-[4.5rem] sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-end gap-5 sm:gap-6">
             <div className="rounded-full bg-bg p-1.5">
               <Avatar
                 url={profile.avatar_url}
                 name={profile.display_name ?? profile.username}
-                size="lg"
+                size="xl"
               />
             </div>
-            <div className="pb-1">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-0 pb-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
                 <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-text sm:text-4xl">
                   {profile.display_name ?? "Garage Profile"}
                 </h1>
                 <SkillBadge level={profile.skill_level} />
+                <BadgeRow badgeKeys={badgeKeys} />
               </div>
               {profile.username ? (
-                <p className="mt-1 text-sm text-text-muted">@{profile.username}</p>
+                <p className="mt-1.5 text-sm text-text-muted">
+                  @{profile.username}
+                </p>
               ) : null}
-              <BadgeRow badgeKeys={badgeKeys} className="mt-3" />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -88,7 +90,7 @@ export function ProfileHero({
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-muted">
+        <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-muted">
           {profile.location ? <span>{profile.location}</span> : null}
           <span className="font-mono text-xs uppercase tracking-[0.14em] text-metal">
             Member since {formatMemberSince(profile.created_at)}
@@ -108,7 +110,7 @@ export function ProfileHero({
         ) : null}
 
         {favorites.length > 0 ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+          <div className="mt-6 grid gap-4 border border-border bg-surface/20 px-5 py-4 sm:grid-cols-3">
             {favorites.map((fav) => (
               <div key={fav.label}>
                 <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-metal">

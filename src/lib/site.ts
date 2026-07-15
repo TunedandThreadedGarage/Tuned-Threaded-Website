@@ -2,7 +2,7 @@ export const siteNavLinks = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "#shop" },
   { label: "Garage", href: "/garage" },
-  { label: "Community", href: "/garage" },
+  { label: "Community", href: "/community" },
   { label: "Builds", href: "/garage/builds" },
   { label: "Journal", href: "/garage/journal" },
 ] as const;

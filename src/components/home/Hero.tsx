@@ -47,8 +47,8 @@ export function Hero() {
           <Button href="#shop" variant="primary">
             Shop the Collection
           </Button>
-          <Button href="#community" variant="secondary">
-            Join the Community
+          <Button href="/garage/sign-up" variant="secondary">
+            Join the Garage
           </Button>
         </div>
       </div>

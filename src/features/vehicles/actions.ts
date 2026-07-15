@@ -45,6 +45,7 @@ export async function upsertVehicle(
     const model = String(formData.get("model") ?? "").trim();
     if (!make || !model) return { error: "Make and model are required." };
 
+    const photoUrlRaw = String(formData.get("photo_url") ?? "").trim();
     const payload = {
       user_id: user.id,
       make,
@@ -63,8 +64,12 @@ export async function upsertVehicle(
         0,
         Math.min(100, numOrNull(String(formData.get("progress_pct") ?? "")) ?? 0),
       ),
-      photo_url: String(formData.get("photo_url") ?? "").trim() || null,
-      is_primary: formData.get("is_primary") === "on",
+      ...(formData.has("photo_url")
+        ? { photo_url: photoUrlRaw || null }
+        : {}),
+      ...(formData.has("is_primary")
+        ? { is_primary: formData.get("is_primary") === "on" }
+        : {}),
     };
 
     let vehicleId = id;
@@ -184,13 +189,35 @@ export async function addTimelineEntry(
     const title = String(formData.get("title") ?? "").trim();
     if (!vehicleId || !title) return { error: "Title is required." };
 
-    const photoRaw = String(formData.get("photos") ?? "").trim();
-    const photos = photoRaw
-      ? photoRaw
-          .split("\n")
-          .map((p) => p.trim())
-          .filter(Boolean)
-      : [];
+    const photos: string[] = [];
+    const files = formData
+      .getAll("photo_files")
+      .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+
+    for (const file of files.slice(0, 8)) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        return { error: "Timeline photos must be JPG, PNG, or WebP." };
+      }
+      if (file.size > 4 * 1024 * 1024) {
+        return { error: "Each timeline photo must be under 4MB." };
+      }
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${user.id}/vehicles/${vehicleId}/timeline-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("garage")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) {
+        return {
+          error: uploadError.message.includes("Bucket not found")
+            ? "Storage bucket missing — run supabase/migrations/20260715_storage_buckets.sql."
+            : uploadError.message,
+        };
+      }
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("garage").getPublicUrl(path);
+      photos.push(publicUrl);
+    }
 
     const cost = numOrNull(String(formData.get("cost") ?? ""));
     const hours = numOrNull(String(formData.get("hours_spent") ?? ""));
@@ -372,8 +399,12 @@ export async function updateVehiclePhotoUrl(
       .eq("id", vehicleId)
       .eq("user_id", user.id);
     if (error) return { error: error.message };
-    revalidatePath("/garage");
-    revalidatePath("/garage/settings");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle();
+    revalidateVehicle(profile?.username, vehicleId);
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };

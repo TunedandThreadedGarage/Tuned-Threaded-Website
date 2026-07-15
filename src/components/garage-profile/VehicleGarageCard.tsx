@@ -14,6 +14,13 @@ export function VehicleGarageCard({
     vehicle.nickname ||
     [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ");
 
+  const identity = [
+    { label: "Year", value: vehicle.year?.toString() ?? null },
+    { label: "Make", value: vehicle.make || null },
+    { label: "Model", value: vehicle.model || null },
+    { label: "Trim", value: vehicle.trim || null },
+  ].filter((row) => row.value);
+
   return (
     <Link
       href={href}
@@ -42,10 +49,20 @@ export function VehicleGarageCard({
           <h3 className="mt-1 font-[family-name:var(--font-display)] text-lg font-medium text-text">
             {title}
           </h3>
-          {vehicle.trim ? (
-            <p className="text-sm text-text-muted">{vehicle.trim}</p>
-          ) : null}
         </div>
+
+        {identity.length > 0 ? (
+          <dl className="grid grid-cols-2 gap-2 text-xs text-text-muted">
+            {identity.map((row) => (
+              <div key={row.label}>
+                <dt className="font-mono uppercase tracking-[0.12em] text-metal">
+                  {row.label}
+                </dt>
+                <dd className="mt-0.5 text-text">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
 
         <dl className="grid grid-cols-2 gap-2 text-xs text-text-muted">
           {vehicle.engine ? (

@@ -44,9 +44,17 @@ export async function followUser(followingId: string): Promise<ActionResult> {
       message: `${me?.display_name ?? me?.username ?? "Someone"} started following you.`,
     });
 
+    await supabase.from("community_notifications").insert({
+      user_id: followingId,
+      actor_id: user.id,
+      type: "follow",
+      message: `${me?.display_name ?? me?.username ?? "Someone"} started following you.`,
+    });
+
     await evaluateAndAwardBadges(supabase, followingId);
     await refreshReputationCache(supabase, followingId);
     revalidatePath("/garage");
+    revalidatePath("/community");
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };
@@ -63,6 +71,7 @@ export async function unfollowUser(followingId: string): Promise<ActionResult> {
       .eq("following_id", followingId);
     if (error) return { error: error.message };
     revalidatePath("/garage");
+    revalidatePath("/community");
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };

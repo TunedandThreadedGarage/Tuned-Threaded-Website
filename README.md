@@ -31,6 +31,7 @@ npm run dev
    - Disable **Confirm email** while developing (avoids email rate limits)
    - Enable Google / Apple / Discord later when ready
 5. Confirm Storage buckets `avatars`, `banners`, `builds`, and `garage` exist.
+6. For the Community feed, also run [`supabase/migrations/20260715_community_feed.sql`](supabase/migrations/20260715_community_feed.sql).
 
 ## Garage Profile routes
 
@@ -40,6 +41,8 @@ npm run dev
 | `/garage/onboarding` | Username + display name |
 | `/garage` | Your Garage Profile (hero, stats, vehicles, builds, gallery) |
 | `/garage/discover` | Community builds + members |
+| `/community` | Social feed (Following / Trending / Newest / Nearby) |
+| `/community/search` | Search users, vehicles, builds, posts |
 | `/garage/[username]` | Public profile |
 | `/garage/[username]/vehicles/[id]` | Dedicated vehicle page |
 | `/garage/[username]/gallery` | Public gallery |

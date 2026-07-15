@@ -5,12 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import { Avatar } from "@/components/garage-profile/Avatar";
 import { ProgressBar } from "@/components/garage-profile/ProgressBar";
 import { BuildPhotoUpload } from "@/features/builds/components/BuildPhotoUpload";
+import { BuildEditForm } from "@/features/builds/components/BuildEditForm";
 import { LikeButton } from "@/features/social/components/LikeButton";
 import { CommentForm } from "@/features/social/components/CommentForm";
 import { ShareButton } from "@/features/social/components/ShareButton";
 import { SaveBuildButton } from "@/features/social/components/SaveBuildButton";
 import { deleteBuild } from "@/features/builds/actions";
 import { DeleteButton } from "@/components/ui/DeleteButton";
+import type { Build } from "@/types/database";
 
 export default async function BuildDetailPage({
   params,
@@ -171,7 +173,10 @@ export default async function BuildDetailPage({
       ) : null}
 
       {isOwner ? (
-        <BuildPhotoUpload buildId={build.id} userId={build.user_id} />
+        <div className="space-y-6">
+          <BuildEditForm build={build as Build} />
+          <BuildPhotoUpload buildId={build.id} userId={build.user_id} />
+        </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3 border-y border-border py-4">

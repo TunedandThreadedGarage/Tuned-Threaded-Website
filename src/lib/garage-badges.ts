@@ -5,6 +5,10 @@ export const BADGE_META: Record<
   string,
   { label: string; description: string }
 > = {
+  beginner: {
+    label: "Beginner",
+    description: "New to the Tuned & Threaded community.",
+  },
   first_build: {
     label: "First Build",
     description: "Published your first build.",
@@ -16,6 +20,18 @@ export const BADGE_META: Record<
   engine_builder: {
     label: "Engine Builder",
     description: "Documented engine work on a vehicle.",
+  },
+  fabricator: {
+    label: "Fabricator",
+    description: "Hands-on fabrication and custom work.",
+  },
+  track_veteran: {
+    label: "Track Veteran",
+    description: "Logged track or quarter-mile results.",
+  },
+  master_builder: {
+    label: "Master Builder",
+    description: "Top-tier reputation across the garage.",
   },
   forced_induction: {
     label: "Forced Induction",

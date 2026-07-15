@@ -31,6 +31,8 @@ After the foundation migration, run:
 
 This adds vehicle pages, badges, timeline, gallery albums, saved builds, dyno/ET logs, and profile customization fields.
 
+**Verify applied:** In SQL Editor, `select key from public.badges limit 1;` should return rows, and `profiles` should include columns like `accent_color`, `favorite_manufacturer`, and `reputation_cached`. If any query 404s / column-missing errors, re-run the migration (it is idempotent).
+
 ## OAuth (optional, after email works)
 
 Enable in **Authentication → Providers**, then configure each provider’s client ID/secret:

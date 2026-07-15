@@ -114,6 +114,57 @@ export async function createBuild(
   }
 }
 
+export async function updateBuild(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await requireUser();
+    const id = String(formData.get("id") ?? "").trim();
+    if (!id) return { error: "Build id is required." };
+
+    const progressRaw = String(formData.get("progress_pct") ?? "").trim();
+    const progress_pct = Math.max(
+      0,
+      Math.min(100, progressRaw ? Number(progressRaw) : 0),
+    );
+    const status = (String(formData.get("status") ?? "active") ||
+      "active") as BuildStatus;
+    const isPublic = formData.get("is_public") === "on";
+
+    const title = String(formData.get("title") ?? "").trim();
+    if (!title) return { error: "Title is required." };
+
+    const { error } = await supabase
+      .from("builds")
+      .update({
+        title,
+        body: String(formData.get("body") ?? "").trim() || null,
+        progress_pct,
+        current_stage:
+          String(formData.get("current_stage") ?? "").trim() || null,
+        upcoming_stage:
+          String(formData.get("upcoming_stage") ?? "").trim() || null,
+        estimated_completion:
+          String(formData.get("estimated_completion") ?? "").trim() || null,
+        status,
+        is_public: isPublic,
+      })
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) return { error: error.message };
+    await evaluateAndAwardBadges(supabase, user.id);
+    await refreshReputationCache(supabase, user.id);
+    revalidatePath(`/garage/builds/${id}`);
+    revalidatePath("/garage/builds");
+    revalidatePath("/garage");
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
 export async function deleteBuild(id: string): Promise<ActionResult> {
   try {
     const { supabase, user } = await requireUser();

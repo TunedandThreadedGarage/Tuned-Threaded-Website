@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import {
   addDynoResult,
   addMaintenanceLog,
+  addModification,
   addQuarterMileTime,
   addTimelineEntry,
   upsertVehicle,
@@ -12,6 +13,10 @@ import {
 } from "@/features/vehicles/actions";
 import { FormField, TextAreaField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
+import {
+  VehicleCoverUpload,
+  VehicleGalleryUpload,
+} from "@/features/vehicles/components/VehicleMediaUpload";
 import type { Vehicle } from "@/types/database";
 
 const initial: ActionResult = {};
@@ -34,9 +39,22 @@ export function VehicleOwnerForms({ vehicle }: { vehicle: Vehicle }) {
   const [dynoState, dynoAction] = useActionState(addDynoResult, initial);
   const [etState, etAction] = useActionState(addQuarterMileTime, initial);
   const [updateState, updateAction] = useActionState(upsertVehicle, initial);
+  const [modState, modAction] = useActionState(addModification, initial);
 
   return (
     <div className="space-y-8">
+      <div className="grid gap-6 border border-border p-4 sm:grid-cols-2">
+        <VehicleCoverUpload
+          vehicleId={vehicle.id}
+          userId={vehicle.user_id}
+          currentUrl={vehicle.photo_url}
+        />
+        <VehicleGalleryUpload
+          vehicleId={vehicle.id}
+          userId={vehicle.user_id}
+        />
+      </div>
+
       <form
         action={updateAction}
         className="grid gap-3 border border-border p-4 sm:grid-cols-2"
@@ -103,9 +121,9 @@ export function VehicleOwnerForms({ vehicle }: { vehicle: Vehicle }) {
           defaultValue={vehicle.mileage?.toString() ?? ""}
         />
         <FormField
-          label="Photo URL"
-          name="photo_url"
-          defaultValue={vehicle.photo_url ?? ""}
+          label="Nickname"
+          name="nickname"
+          defaultValue={vehicle.nickname ?? ""}
         />
         <div className="sm:col-span-2">
           <TextAreaField
@@ -122,27 +140,67 @@ export function VehicleOwnerForms({ vehicle }: { vehicle: Vehicle }) {
         </div>
       </form>
 
-      <form action={timelineAction} className="space-y-3 border border-border p-4">
+      <form action={modAction} className="space-y-3 border border-border p-4">
+        <p className="text-sm font-medium text-text">Add part</p>
+        <input type="hidden" name="vehicle_id" value={vehicle.id} />
+        <FormField label="Title" name="title" required />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FormField label="Brand" name="part_brand" />
+          <FormField label="Part #" name="part_number" />
+        </div>
+        <label className="block text-sm text-text">
+          <span className="font-medium">Status</span>
+          <select
+            name="status"
+            className="mt-1.5 w-full border border-border bg-bg px-3 py-2.5 text-sm text-text"
+            defaultValue="installed"
+          >
+            <option value="installed">Installed</option>
+            <option value="wishlist">Future / wishlist</option>
+          </select>
+        </label>
+        <FormField label="Cost ($)" name="cost" type="number" />
+        <TextAreaField label="Notes" name="description" />
+        {modState.error ? (
+          <p className="text-sm text-accent">{modState.error}</p>
+        ) : null}
+        {modState.success ? (
+          <p className="text-sm text-text-muted">Part added.</p>
+        ) : null}
+        <Submit label="Add part" />
+      </form>
+
+      <form
+        action={timelineAction}
+        encType="multipart/form-data"
+        className="space-y-3 border border-border p-4"
+      >
         <p className="text-sm font-medium text-text">Add timeline update</p>
         <input type="hidden" name="vehicle_id" value={vehicle.id} />
         <FormField label="Title" name="title" required />
         <FormField label="Date" name="entry_date" type="date" />
         <TextAreaField label="Description" name="description" />
-        <TextAreaField
-          label="Parts installed"
-          name="parts_installed"
-        />
+        <TextAreaField label="Parts installed" name="parts_installed" />
         <div className="grid gap-3 sm:grid-cols-2">
           <FormField label="Cost ($)" name="cost" type="number" />
           <FormField label="Hours" name="hours_spent" type="number" />
         </div>
         <FormField label="Video URL" name="video_url" />
-        <TextAreaField
-          label="Photo URLs (one per line)"
-          name="photos"
-        />
+        <label className="block text-sm text-text">
+          <span className="font-medium">Photos</span>
+          <input
+            type="file"
+            name="photo_files"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            className="mt-1.5 block w-full text-sm text-text-muted file:mr-3 file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-text"
+          />
+        </label>
         {timelineState.error ? (
           <p className="text-sm text-accent">{timelineState.error}</p>
+        ) : null}
+        {timelineState.success ? (
+          <p className="text-sm text-text-muted">Timeline update added.</p>
         ) : null}
         <Submit label="Add update" />
       </form>

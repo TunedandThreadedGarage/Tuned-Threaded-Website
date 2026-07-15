@@ -290,6 +290,90 @@ export type SavedBuild = {
   created_at: string;
 };
 
+export type CommunityPostType =
+  | "photo"
+  | "video"
+  | "build_update"
+  | "maintenance"
+  | "dyno"
+  | "quarter_mile"
+  | "question"
+  | "discussion"
+  | "status";
+
+export type CommunityPost = {
+  id: string;
+  user_id: string;
+  vehicle_id: string | null;
+  build_id: string | null;
+  post_type: CommunityPostType;
+  title: string | null;
+  body: string | null;
+  media_urls: string[];
+  video_url: string | null;
+  youtube_url: string | null;
+  tags: string[];
+  manufacturer: string | null;
+  engine: string | null;
+  transmission: string | null;
+  horsepower: number | null;
+  state: string | null;
+  location: string | null;
+  is_public: boolean;
+  like_count: number;
+  comment_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CommunityComment = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  parent_id: string | null;
+  body: string;
+  image_url: string | null;
+  like_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CommunityLike = {
+  post_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type CommunityCommentLike = {
+  comment_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type CommunitySavedPost = {
+  post_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+export type CommunityTag = {
+  key: string;
+  label: string;
+  sort_order: number;
+};
+
+export type CommunityNotification = {
+  id: string;
+  user_id: string;
+  actor_id: string | null;
+  type: string;
+  post_id: string | null;
+  comment_id: string | null;
+  message: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 export type GarageStats = {
   followers: number;
   following: number;
@@ -454,6 +538,61 @@ export type Database = {
         Row: SavedBuild;
         Insert: SavedBuild;
         Update: Partial<SavedBuild>;
+      };
+      community_posts: {
+        Row: CommunityPost;
+        Insert: Omit<
+          CommunityPost,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "like_count"
+          | "comment_count"
+          | "media_urls"
+          | "tags"
+        > & {
+          id?: string;
+          media_urls?: string[];
+          tags?: string[];
+          like_count?: number;
+          comment_count?: number;
+        };
+        Update: Partial<CommunityPost>;
+      };
+      community_comments: {
+        Row: CommunityComment;
+        Insert: Omit<
+          CommunityComment,
+          "id" | "created_at" | "updated_at" | "like_count"
+        > & { id?: string; like_count?: number };
+        Update: Partial<CommunityComment>;
+      };
+      community_likes: {
+        Row: CommunityLike;
+        Insert: CommunityLike;
+        Update: Partial<CommunityLike>;
+      };
+      community_comment_likes: {
+        Row: CommunityCommentLike;
+        Insert: CommunityCommentLike;
+        Update: Partial<CommunityCommentLike>;
+      };
+      community_saved_posts: {
+        Row: CommunitySavedPost;
+        Insert: CommunitySavedPost;
+        Update: Partial<CommunitySavedPost>;
+      };
+      community_tags: {
+        Row: CommunityTag;
+        Insert: CommunityTag;
+        Update: Partial<CommunityTag>;
+      };
+      community_notifications: {
+        Row: CommunityNotification;
+        Insert: Omit<CommunityNotification, "id" | "created_at" | "read_at"> & {
+          id?: string;
+        };
+        Update: Partial<CommunityNotification>;
       };
     };
   };

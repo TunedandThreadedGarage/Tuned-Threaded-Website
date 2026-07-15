@@ -29,9 +29,12 @@ export function CommunitySection() {
           </p>
         </FadeIn>
 
-        <FadeIn delay={0.2} className="mt-10">
-          <Button href="#newsletter" variant="accent">
-            Join the Community
+        <FadeIn delay={0.2} className="mt-10 flex flex-col gap-3 sm:flex-row">
+          <Button href="/garage/sign-up" variant="accent">
+            Create Garage Profile
+          </Button>
+          <Button href="/community" variant="secondary">
+            Explore Community
           </Button>
         </FadeIn>
       </div>
