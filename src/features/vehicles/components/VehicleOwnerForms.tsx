@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   addDynoResult,
@@ -13,6 +13,7 @@ import {
 } from "@/features/vehicles/actions";
 import { FormField, TextAreaField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
+import { MediaUpload } from "@/components/media/MediaUpload";
 import {
   VehicleCoverUpload,
   VehicleGalleryUpload,
@@ -40,6 +41,8 @@ export function VehicleOwnerForms({ vehicle }: { vehicle: Vehicle }) {
   const [etState, etAction] = useActionState(addQuarterMileTime, initial);
   const [updateState, updateAction] = useActionState(upsertVehicle, initial);
   const [modState, modAction] = useActionState(addModification, initial);
+  const [timelinePhotos, setTimelinePhotos] = useState<string[]>([]);
+  const [timelineVideo, setTimelineVideo] = useState<string | null>(null);
 
   return (
     <div className="space-y-8">
@@ -185,17 +188,28 @@ export function VehicleOwnerForms({ vehicle }: { vehicle: Vehicle }) {
           <FormField label="Cost ($)" name="cost" type="number" />
           <FormField label="Hours" name="hours_spent" type="number" />
         </div>
-        <FormField label="Video URL" name="video_url" />
-        <label className="block text-sm text-text">
-          <span className="font-medium">Photos</span>
-          <input
-            type="file"
-            name="photo_files"
-            accept="image/jpeg,image/png,image/webp"
-            multiple
-            className="mt-1.5 block w-full text-sm text-text-muted file:mr-3 file:border file:border-border file:bg-surface file:px-3 file:py-1.5 file:text-text"
-          />
-        </label>
+        {timelinePhotos.map((url) => (
+          <input key={url} type="hidden" name="photos" value={url} />
+        ))}
+        {timelineVideo ? (
+          <input type="hidden" name="video_url" value={timelineVideo} />
+        ) : null}
+        <MediaUpload
+          bucket="garage"
+          pathPrefix={`${vehicle.user_id}/vehicles/${vehicle.id}/timeline`}
+          accept="both"
+          multiple
+          maxFiles={10}
+          label="Photos & video"
+          onUploaded={(files) => {
+            const images = files
+              .filter((f) => f.kind === "image")
+              .map((f) => f.publicUrl);
+            const video = files.find((f) => f.kind === "video");
+            setTimelinePhotos((prev) => [...prev, ...images]);
+            if (video) setTimelineVideo(video.publicUrl);
+          }}
+        />
         {timelineState.error ? (
           <p className="text-sm text-accent">{timelineState.error}</p>
         ) : null}

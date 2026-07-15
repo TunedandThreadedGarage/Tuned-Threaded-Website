@@ -8,6 +8,7 @@ import { Avatar } from "@/components/garage-profile/Avatar";
 import { BadgeRow } from "@/components/garage-profile/BadgeRow";
 import { SkillBadge } from "@/components/garage-profile/SkillBadge";
 import { createClient } from "@/lib/supabase/client";
+import { MediaUpload } from "@/components/media/MediaUpload";
 import {
   addCommunityComment,
   loadPostComments,
@@ -241,44 +242,13 @@ function CommentComposer({
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [gifOpen, setGifOpen] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  async function onFile(file: File | null) {
-    if (!file) return;
-    setBusy(true);
-    setUploadStatus("Uploading…");
-    try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setUploadStatus("Sign in required.");
-        return;
-      }
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        setUploadStatus("Use JPG, PNG, or WebP.");
-        return;
-      }
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${user.id}/community/comments/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-      const { error } = await supabase.storage
-        .from("garage")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (error) {
-        setUploadStatus(error.message);
-        return;
-      }
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("garage").getPublicUrl(path);
-      setImageUrl(publicUrl);
-      setUploadStatus("Photo attached.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  useEffect(() => {
+    void createClient()
+      .auth.getUser()
+      .then(({ data }) => setUserId(data.user?.id ?? null));
+  }, []);
 
   return (
     <form action={action} className="mt-3 space-y-2">
@@ -293,20 +263,19 @@ function CommentComposer({
         placeholder="Add a comment… use @username to mention"
         className="w-full border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-metal/50"
       />
-      {imageUrl ? (
-        <div className="relative aspect-video max-w-xs overflow-hidden border border-border">
-          <MediaThumb src={imageUrl} />
-          <button
-            type="button"
-            className="absolute right-2 top-2 border border-border bg-bg/90 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-text"
-            onClick={() => {
-              setImageUrl(null);
-              setUploadStatus(null);
-            }}
-          >
-            Remove
-          </button>
-        </div>
+      {userId ? (
+        <MediaUpload
+          bucket="garage"
+          pathPrefix={`${userId}/community/comments`}
+          accept="image"
+          multiple={false}
+          maxFiles={1}
+          label="Attach image"
+          variant="compact"
+          onUploaded={(files) => {
+            if (files[0]) setImageUrl(files[0].publicUrl);
+          }}
+        />
       ) : null}
       {gifOpen ? (
         <div className="flex flex-wrap gap-2 border border-border bg-bg/40 p-3">
@@ -317,7 +286,6 @@ function CommentComposer({
               onClick={() => {
                 setImageUrl(g.url);
                 setGifOpen(false);
-                setUploadStatus(`${g.label} GIF attached.`);
               }}
               className="border border-border px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-metal transition-colors hover:border-accent hover:text-text"
             >
@@ -327,28 +295,13 @@ function CommentComposer({
         </div>
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.12em] text-metal hover:text-text">
-            {busy ? "Uploading…" : "Image"}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="sr-only"
-              disabled={busy}
-              onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-            />
-          </label>
-          <button
-            type="button"
-            className="font-mono text-[10px] uppercase tracking-[0.12em] text-metal hover:text-text"
-            onClick={() => setGifOpen((v) => !v)}
-          >
-            GIF
-          </button>
-          {uploadStatus ? (
-            <span className="text-xs text-text-muted">{uploadStatus}</span>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          className="font-mono text-[10px] uppercase tracking-[0.12em] text-metal hover:text-text"
+          onClick={() => setGifOpen((v) => !v)}
+        >
+          GIF
+        </button>
         <button
           type="submit"
           className="border border-border px-4 py-2 text-xs text-text hover:border-metal/40"

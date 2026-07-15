@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Avatar } from "@/components/garage-profile/Avatar";
+import { MediaUpload } from "@/components/media/MediaUpload";
 import {
   addHubBuildComment,
   toggleHubCommentLike,
@@ -168,28 +169,13 @@ export function BuildDiscussion({
   const [gifOpen, setGifOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [userId, setUserId] = useState<string | null>(null);
 
-  async function onFile(file: File | null) {
-    if (!file) return;
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${user.id}/builds/comments/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("builds")
-      .upload(path, file, { upsert: true, contentType: file.type });
-    if (upErr) {
-      setError(upErr.message);
-      return;
-    }
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("builds").getPublicUrl(path);
-    setImageUrl(publicUrl);
-  }
+  useEffect(() => {
+    void createClient()
+      .auth.getUser()
+      .then(({ data }) => setUserId(data.user?.id ?? null));
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -235,6 +221,20 @@ export function BuildDiscussion({
             placeholder="Join the discussion… use @username to mention"
             className="w-full border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-metal/50"
           />
+          {userId ? (
+            <MediaUpload
+              bucket="builds"
+              pathPrefix={`${userId}/builds/comments`}
+              accept="image"
+              multiple={false}
+              maxFiles={1}
+              label="Attach image"
+              variant="compact"
+              onUploaded={(files) => {
+                if (files[0]) setImageUrl(files[0].publicUrl);
+              }}
+            />
+          ) : null}
           {gifOpen ? (
             <div className="flex flex-wrap gap-2">
               {GIF_PLACEHOLDERS.map((g) => (
@@ -253,24 +253,13 @@ export function BuildDiscussion({
             </div>
           ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-3">
-              <label className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.12em] text-metal hover:text-text">
-                Image
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              <button
-                type="button"
-                className="font-mono text-[10px] uppercase tracking-[0.12em] text-metal hover:text-text"
-                onClick={() => setGifOpen((v) => !v)}
-              >
-                GIF
-              </button>
-            </div>
+            <button
+              type="button"
+              className="font-mono text-[10px] uppercase tracking-[0.12em] text-metal hover:text-text"
+              onClick={() => setGifOpen((v) => !v)}
+            >
+              GIF
+            </button>
             <button
               type="submit"
               disabled={pending}

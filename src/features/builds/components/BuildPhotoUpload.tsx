@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { addBuildPhoto } from "@/features/builds/actions";
+import { MediaUpload } from "@/components/media/MediaUpload";
+import { addBuildPhoto, addBuildVideo } from "@/features/builds/actions";
 
 export function BuildPhotoUpload({
   buildId,
@@ -12,55 +12,44 @@ export function BuildPhotoUpload({
   userId: string;
 }) {
   const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function onChange(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    setBusy(true);
-    setStatus("Uploading…");
-    try {
-      const supabase = createClient();
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${userId}/${buildId}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("builds")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (error) {
-        setStatus(error.message);
-        setBusy(false);
-        return;
-      }
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("builds").getPublicUrl(path);
-      const result = await addBuildPhoto({
-        buildId,
-        url: publicUrl,
-        storagePath: path,
-      });
-      setStatus(result.error ?? "Photo added.");
-      if (!result.error) window.location.reload();
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
-    <div>
-      <label className="inline-flex cursor-pointer border border-border px-4 py-2 text-sm text-text hover:border-metal/40">
-        {busy ? "Uploading…" : "Upload build photo"}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="sr-only"
-          disabled={busy}
-          onChange={(e) => void onChange(e.target.files)}
-        />
-      </label>
-      {status ? <p className="mt-2 text-xs text-text-muted">{status}</p> : null}
+    <div className="space-y-2">
+      <MediaUpload
+        bucket="builds"
+        pathPrefix={`${userId}/${buildId}`}
+        accept="both"
+        multiple
+        maxFiles={12}
+        label="Build photos & video"
+        onUploaded={async (files) => {
+          let photos = 0;
+          let videos = 0;
+          for (const file of files) {
+            if (file.kind === "video") {
+              const result = await addBuildVideo({
+                buildId,
+                url: file.publicUrl,
+              });
+              if (!result.error) videos += 1;
+              else setStatus(result.error);
+            } else {
+              const result = await addBuildPhoto({
+                buildId,
+                url: file.publicUrl,
+                storagePath: file.storagePath,
+              });
+              if (!result.error) photos += 1;
+              else setStatus(result.error);
+            }
+          }
+          if (photos + videos > 0) {
+            setStatus("Media added.");
+            window.location.reload();
+          }
+        }}
+      />
+      {status ? <p className="text-xs text-text-muted">{status}</p> : null}
     </div>
   );
 }

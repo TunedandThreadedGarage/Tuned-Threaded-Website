@@ -126,7 +126,9 @@ export function VehicleManager({
             defaultValue="0"
           />
         </div>
-        <FormField label="Cover photo URL" name="photo_url" />
+        <p className="text-xs text-text-muted">
+          After creating the vehicle, upload a cover photo from the vehicle page.
+        </p>
         <TextAreaField label="Notes / goals" name="notes" />
         <label className="flex items-center gap-2 text-sm text-text">
           <input type="checkbox" name="is_primary" className="accent-accent" />

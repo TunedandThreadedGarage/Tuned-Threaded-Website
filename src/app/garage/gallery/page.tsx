@@ -32,7 +32,11 @@ export default async function OwnerGalleryPage() {
           Organize albums — builds, rolling shots, dyno sheets, garage photos.
         </p>
       </div>
-      <GalleryManager albums={albums ?? []} photos={photos ?? []} />
+      <GalleryManager
+        albums={albums ?? []}
+        photos={photos ?? []}
+        userId={user.id}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   COMMUNITY_POST_TYPES,
 } from "@/features/community/constants";
 import { Button } from "@/components/ui/Button";
+import { MediaUpload } from "@/components/media/MediaUpload";
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -68,8 +69,8 @@ function CreatePostModal({
 }) {
   const [state, action] = useActionState(createCommunityPost, {});
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -79,50 +80,13 @@ function CreatePostModal({
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    void createClient()
+      .auth.getUser()
+      .then(({ data }) => setUserId(data.user?.id ?? null));
     return () => {
       document.body.style.overflow = prev;
     };
   }, []);
-
-  async function onFiles(files: FileList | null) {
-    if (!files?.length) return;
-    setBusy(true);
-    setUploadStatus("Uploading…");
-    try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setUploadStatus("Sign in required.");
-        return;
-      }
-      const urls: string[] = [];
-      for (const file of Array.from(files).slice(0, 6)) {
-        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-          setUploadStatus("Use JPG, PNG, or WebP.");
-          continue;
-        }
-        const ext = file.name.split(".").pop() ?? "jpg";
-        const path = `${user.id}/community/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-        const { error } = await supabase.storage
-          .from("garage")
-          .upload(path, file, { upsert: true, contentType: file.type });
-        if (error) {
-          setUploadStatus(error.message);
-          continue;
-        }
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("garage").getPublicUrl(path);
-        urls.push(publicUrl);
-      }
-      setMediaUrls((prev) => [...prev, ...urls]);
-      setUploadStatus(urls.length ? "Photos added." : null);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
@@ -155,6 +119,9 @@ function CreatePostModal({
           {mediaUrls.map((url) => (
             <input key={url} type="hidden" name="media_urls" value={url} />
           ))}
+          {videoUrl ? (
+            <input type="hidden" name="video_url" value={videoUrl} />
+          ) : null}
           <input type="hidden" name="tags" value={selectedTags.join(",")} />
 
           <label className="block text-sm text-text">
@@ -205,25 +172,6 @@ function CreatePostModal({
               ))}
             </select>
           </label>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm text-text">
-              <span className="font-medium">YouTube URL</span>
-              <input
-                name="youtube_url"
-                placeholder="https://youtube.com/…"
-                className="mt-1.5 w-full border border-border bg-bg px-3 py-2.5 text-sm text-text"
-              />
-            </label>
-            <label className="block text-sm text-text">
-              <span className="font-medium">Video URL</span>
-              <input
-                name="video_url"
-                placeholder="https://…"
-                className="mt-1.5 w-full border border-border bg-bg px-3 py-2.5 text-sm text-text"
-              />
-            </label>
-          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm text-text">
@@ -300,27 +248,26 @@ function CreatePostModal({
             </div>
           </div>
 
-          <div>
-            <label className="inline-flex cursor-pointer border border-border px-4 py-2 text-sm text-text hover:border-metal/40">
-              {busy ? "Uploading…" : "Add photos"}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                className="sr-only"
-                disabled={busy}
-                onChange={(e) => void onFiles(e.target.files)}
-              />
-            </label>
-            {uploadStatus ? (
-              <p className="mt-2 text-xs text-text-muted">{uploadStatus}</p>
-            ) : null}
-            {mediaUrls.length ? (
-              <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-metal">
-                {mediaUrls.length} photo{mediaUrls.length === 1 ? "" : "s"} ready
-              </p>
-            ) : null}
-          </div>
+          {userId ? (
+            <MediaUpload
+              bucket="garage"
+              pathPrefix={`${userId}/community`}
+              accept="both"
+              multiple
+              maxFiles={8}
+              label="Photos & video"
+              onUploaded={(files) => {
+                const images = files
+                  .filter((f) => f.kind === "image")
+                  .map((f) => f.publicUrl);
+                const video = files.find((f) => f.kind === "video");
+                setMediaUrls((prev) => [...prev, ...images]);
+                if (video) setVideoUrl(video.publicUrl);
+              }}
+            />
+          ) : (
+            <p className="text-xs text-text-muted">Loading uploader…</p>
+          )}
 
           {state.error ? (
             <p className="text-sm text-accent" role="alert">

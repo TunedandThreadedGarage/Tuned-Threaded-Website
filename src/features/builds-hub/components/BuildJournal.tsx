@@ -26,6 +26,7 @@ import { BuildDiscussion } from "@/features/builds-hub/components/BuildDiscussio
 import { PerfCharts } from "@/features/builds-hub/components/PerfCharts";
 import { Button } from "@/components/ui/Button";
 import { FadeIn } from "@/components/ui/FadeIn";
+import { MediaUpload } from "@/components/media/MediaUpload";
 
 export function BuildJournal({
   initial,
@@ -47,6 +48,8 @@ export function BuildJournal({
   const [timelineState, timelineAction] = useActionState(addTimelineEntry, {});
   const [goalsState, goalsAction] = useActionState(upsertBuildGoals, {});
   const [partState, partAction] = useActionState(addBuildPart, {});
+  const [timelinePhotos, setTimelinePhotos] = useState<string[]>([]);
+  const [timelineVideo, setTimelineVideo] = useState<string | null>(null);
 
   const b = bundle.build;
   const username = b.author?.username;
@@ -400,11 +403,6 @@ export function BuildJournal({
                   className="border border-border bg-bg px-3 py-2.5 text-sm text-text"
                 />
                 <input
-                  name="video_url"
-                  placeholder="Video URL"
-                  className="border border-border bg-bg px-3 py-2.5 text-sm text-text"
-                />
-                <input
                   name="cost_cents"
                   type="number"
                   placeholder="Cost (cents)"
@@ -418,6 +416,28 @@ export function BuildJournal({
                   className="border border-border bg-bg px-3 py-2.5 text-sm text-text"
                 />
               </div>
+              {timelinePhotos.map((url) => (
+                <input key={url} type="hidden" name="photos" value={url} />
+              ))}
+              {timelineVideo ? (
+                <input type="hidden" name="video_url" value={timelineVideo} />
+              ) : null}
+              <MediaUpload
+                bucket="builds"
+                pathPrefix={`${b.user_id}/${b.id}/timeline`}
+                accept="both"
+                multiple
+                maxFiles={10}
+                label="Photos & video"
+                onUploaded={(files) => {
+                  const images = files
+                    .filter((f) => f.kind === "image")
+                    .map((f) => f.publicUrl);
+                  const video = files.find((f) => f.kind === "video");
+                  setTimelinePhotos((prev) => [...prev, ...images]);
+                  if (video) setTimelineVideo(video.publicUrl);
+                }}
+              />
               {timelineState.error ? (
                 <p className="text-sm text-accent">{timelineState.error}</p>
               ) : null}

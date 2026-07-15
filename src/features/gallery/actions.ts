@@ -53,16 +53,19 @@ export async function addGalleryPhoto(
     const { supabase, user } = await requireUser();
     const albumId = String(formData.get("album_id") ?? "");
     const url = String(formData.get("url") ?? "").trim();
-    if (!albumId || !url) return { error: "Album and photo URL are required." };
+    if (!albumId || !url) return { error: "Album and photo are required." };
 
     const category = (String(formData.get("category") ?? "general") ||
       "general") as AlbumCategory;
+    const storagePath =
+      String(formData.get("storage_path") ?? "").trim() ||
+      `${user.id}/gallery/${albumId}/${Date.now()}`;
 
     const { error } = await supabase.from("garage_photos").insert({
       album_id: albumId,
       user_id: user.id,
       url,
-      storage_path: `url/${Date.now()}`,
+      storage_path: storagePath,
       caption: String(formData.get("caption") ?? "").trim() || null,
       category,
       sort_order: 0,

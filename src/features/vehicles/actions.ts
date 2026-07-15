@@ -189,7 +189,14 @@ export async function addTimelineEntry(
     const title = String(formData.get("title") ?? "").trim();
     if (!vehicleId || !title) return { error: "Title is required." };
 
-    const photos: string[] = [];
+    const photos: string[] = formData
+      .getAll("photos")
+      .map(String)
+      .map((u) => u.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+
+    // Legacy multipart fallback still supported
     const files = formData
       .getAll("photo_files")
       .filter((entry): entry is File => entry instanceof File && entry.size > 0);

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
   addGalleryPhoto,
@@ -11,6 +11,7 @@ import {
 } from "@/features/gallery/actions";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
+import { MediaUpload } from "@/components/media/MediaUpload";
 import type { GarageAlbum, GaragePhoto } from "@/types/database";
 
 const initial: ActionResult = {};
@@ -36,13 +37,18 @@ const CATEGORIES = [
 export function GalleryManager({
   albums,
   photos,
+  userId,
 }: {
   albums: GarageAlbum[];
   photos: GaragePhoto[];
+  userId: string;
 }) {
   const [albumState, albumAction] = useActionState(createAlbum, initial);
-  const [photoState, photoAction] = useActionState(addGalleryPhoto, initial);
   const [pending, startTransition] = useTransition();
+  const [albumId, setAlbumId] = useState(albums[0]?.id ?? "");
+  const [category, setCategory] = useState("general");
+  const [caption, setCaption] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
 
   return (
     <div className="space-y-10">
@@ -132,16 +138,13 @@ export function GalleryManager({
       </form>
 
       {albums.length > 0 ? (
-        <form
-          action={photoAction}
-          className="max-w-lg space-y-3 border border-border p-5"
-        >
+        <div className="max-w-lg space-y-3 border border-border p-5">
           <p className="text-sm font-medium text-text">Add photo</p>
           <label className="block text-sm text-text">
             <span className="font-medium">Album</span>
             <select
-              name="album_id"
-              required
+              value={albumId}
+              onChange={(e) => setAlbumId(e.target.value)}
               className="mt-1.5 w-full border border-border bg-bg px-3 py-2.5 text-sm text-text"
             >
               {albums.map((a) => (
@@ -151,14 +154,12 @@ export function GalleryManager({
               ))}
             </select>
           </label>
-          <FormField label="Image URL" name="url" required />
-          <FormField label="Caption" name="caption" />
           <label className="block text-sm text-text">
             <span className="font-medium">Category</span>
             <select
-              name="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               className="mt-1.5 w-full border border-border bg-bg px-3 py-2.5 text-sm text-text"
-              defaultValue="general"
             >
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -167,11 +168,45 @@ export function GalleryManager({
               ))}
             </select>
           </label>
-          {photoState.error ? (
-            <p className="text-sm text-accent">{photoState.error}</p>
-          ) : null}
-          <Submit label="Add photo" />
-        </form>
+          <FormField
+            label="Caption"
+            name="caption"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+          />
+          <MediaUpload
+            bucket="garage"
+            pathPrefix={`${userId}/gallery/${albumId || "general"}`}
+            accept="image"
+            multiple
+            maxFiles={12}
+            label="Photos"
+            onUploaded={async (files) => {
+              if (!albumId) {
+                setStatus("Select an album first.");
+                return;
+              }
+              let ok = 0;
+              for (const file of files) {
+                const fd = new FormData();
+                fd.set("album_id", albumId);
+                fd.set("url", file.publicUrl);
+                fd.set("storage_path", file.storagePath);
+                fd.set("caption", caption);
+                fd.set("category", category);
+                const res = await addGalleryPhoto({}, fd);
+                if (res.error) setStatus(res.error);
+                else ok += 1;
+              }
+              if (ok > 0) {
+                setStatus(`${ok} photo${ok === 1 ? "" : "s"} added.`);
+                setCaption("");
+                window.location.reload();
+              }
+            }}
+          />
+          {status ? <p className="text-xs text-text-muted">{status}</p> : null}
+        </div>
       ) : null}
     </div>
   );

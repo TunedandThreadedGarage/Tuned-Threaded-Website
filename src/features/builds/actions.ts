@@ -200,6 +200,30 @@ export async function addBuildPhoto(input: {
     if (error) return { error: error.message };
     await evaluateAndAwardBadges(supabase, user.id);
     revalidatePath(`/garage/builds/${input.buildId}`);
+    revalidatePath(`/builds/${input.buildId}`);
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
+export async function addBuildVideo(input: {
+  buildId: string;
+  url: string;
+  caption?: string;
+}): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await requireUser();
+    const { error } = await supabase.from("build_videos").insert({
+      build_id: input.buildId,
+      user_id: user.id,
+      url: input.url,
+      caption: input.caption ?? null,
+      sort_order: 0,
+    });
+    if (error) return { error: error.message };
+    revalidatePath(`/garage/builds/${input.buildId}`);
+    revalidatePath(`/builds/${input.buildId}`);
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };
