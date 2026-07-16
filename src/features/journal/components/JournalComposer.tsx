@@ -2,11 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import {
-  JOURNAL_CATEGORIES,
-  upsertJournalEntry,
-  type ActionResult,
-} from "@/features/journal/actions";
+import { upsertJournalEntry, type ActionResult } from "@/features/journal/actions";
+import { JOURNAL_CATEGORIES } from "@/features/journal/constants";
 import { RichTextEditor } from "@/features/journal/components/RichTextEditor";
 import { MediaUpload } from "@/components/media/MediaUpload";
 import { Button } from "@/components/ui/Button";

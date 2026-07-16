@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import {
-  JOURNAL_CATEGORIES,
-  loadJournalFeed,
-} from "@/features/journal/actions";
+import { loadJournalFeed } from "@/features/journal/actions";
+import { JOURNAL_CATEGORIES } from "@/features/journal/constants";
 import { JournalComposer } from "@/features/journal/components/JournalComposer";
 import { JournalTimeline } from "@/features/journal/components/JournalTimeline";
 
