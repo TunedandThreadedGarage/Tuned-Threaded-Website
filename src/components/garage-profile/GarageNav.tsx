@@ -8,12 +8,6 @@ const LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/garage/discover", label: "Discover" },
   { href: "/garage/builds", label: "Builds" },
   { href: "/garage/gallery", label: "Gallery" },
-  { href: "/garage/journal", label: "Journal" },
-  { href: "/garage/wishlist", label: "Wishlist" },
-  { href: "/garage/cart", label: "Cart" },
-  { href: "/garage/orders", label: "Orders" },
-  { href: "/notifications", label: "Alerts" },
-  { href: "/garage/settings", label: "Settings" },
 ];
 
 export function GarageNav() {
@@ -43,5 +37,18 @@ export function GarageNav() {
         );
       })}
     </nav>
+  );
+}
+
+/** Routes that should show the vehicle-showcase Garage chrome. */
+export function isGarageShowcasePath(pathname: string) {
+  if (pathname === "/garage") return true;
+  return (
+    pathname.startsWith("/garage/discover") ||
+    pathname.startsWith("/garage/builds") ||
+    pathname.startsWith("/garage/gallery") ||
+    pathname.startsWith("/garage/vehicles") ||
+    pathname.startsWith("/garage/followers") ||
+    pathname.startsWith("/garage/following")
   );
 }

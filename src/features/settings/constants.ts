@@ -1,15 +1,9 @@
 export const SETTINGS_SECTIONS = [
   {
-    key: "communication",
-    href: "/garage/settings/communication",
-    label: "Communication",
-    description: "Digests, marketing, and overall email cadence.",
-  },
-  {
-    key: "notifications",
-    href: "/garage/settings/notifications",
-    label: "Notifications",
-    description: "Email, in-app, and push toggles per activity type.",
+    key: "account",
+    href: "/garage/settings/account",
+    label: "Account",
+    description: "Profile identity and account preferences.",
   },
   {
     key: "privacy",
@@ -18,10 +12,34 @@ export const SETTINGS_SECTIONS = [
     description: "Mentions, messages, and activity visibility.",
   },
   {
-    key: "account",
-    href: "/garage/settings/account",
-    label: "Account",
-    description: "Profile identity and security essentials.",
+    key: "notifications",
+    href: "/garage/settings/notifications",
+    label: "Notifications",
+    description: "Email, in-app, and push toggles per activity type.",
+  },
+  {
+    key: "password",
+    href: "/garage/settings/password",
+    label: "Password",
+    description: "Update your password and review security emails.",
+  },
+  {
+    key: "connected",
+    href: "/garage/settings/connected",
+    label: "Connected accounts",
+    description: "OAuth providers linked to your Garage.",
+  },
+  {
+    key: "theme",
+    href: "/garage/settings/theme",
+    label: "Theme",
+    description: "Display preferences for Tuned & Threaded.",
+  },
+  {
+    key: "communication",
+    href: "/garage/settings/communication",
+    label: "Communication",
+    description: "Digests, marketing, and overall email cadence.",
   },
   {
     key: "garage",

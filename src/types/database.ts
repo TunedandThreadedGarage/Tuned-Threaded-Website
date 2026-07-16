@@ -114,6 +114,13 @@ export type JournalEntry = {
   title: string;
   body: string | null;
   entry_date: string;
+  visibility: "public" | "private";
+  status: "draft" | "published";
+  category: string | null;
+  media_urls: string[];
+  build_id: string | null;
+  like_count: number;
+  comment_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -667,8 +674,27 @@ export type Database = {
       };
       journal_entries: {
         Row: JournalEntry;
-        Insert: Omit<JournalEntry, "id" | "created_at" | "updated_at"> & {
+        Insert: Omit<
+          JournalEntry,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "visibility"
+          | "status"
+          | "category"
+          | "media_urls"
+          | "build_id"
+          | "like_count"
+          | "comment_count"
+        > & {
           id?: string;
+          visibility?: JournalEntry["visibility"];
+          status?: JournalEntry["status"];
+          category?: string | null;
+          media_urls?: string[];
+          build_id?: string | null;
+          like_count?: number;
+          comment_count?: number;
         };
         Update: Partial<JournalEntry>;
       };

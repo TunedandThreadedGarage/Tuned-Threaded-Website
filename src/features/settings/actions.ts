@@ -179,6 +179,23 @@ export async function loadOrders(): Promise<{
 }> {
   try {
     const { supabase, user } = await requireUser();
+
+    // Prefer Shopify orders (Client Credentials Admin API) matched by account email.
+    try {
+      const { isShopifyConfigured } = await import("@/lib/shopify/config");
+      if (isShopifyConfigured() && user.email) {
+        const { getShopifyOrdersForEmail } = await import(
+          "@/lib/shopify/orders"
+        );
+        const shopifyOrders = await getShopifyOrdersForEmail(user.email);
+        if (shopifyOrders.length > 0) {
+          return { orders: shopifyOrders };
+        }
+      }
+    } catch (e) {
+      console.error("[orders:shopify]", e);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     const { data: orders, error } = await db

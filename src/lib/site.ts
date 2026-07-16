@@ -1,10 +1,10 @@
 export const siteNavLinks = [
   { label: "Home", href: "/" },
-  { label: "Shop", href: "#shop" },
+  { label: "Shop", href: "/store" },
   { label: "Garage", href: "/garage" },
   { label: "Community", href: "/community" },
   { label: "Builds", href: "/builds" },
-  { label: "Journal", href: "/garage/journal" },
+  { label: "Journal", href: "/journal" },
 ] as const;
 
 export const footerLinks = [

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/garage/BrandLogo";
 import { useGarage } from "@/components/garage/GarageExperience";
-import { NotificationBell } from "@/features/notifications/components/NotificationBell";
+import { useCart } from "@/components/cart/CartProvider";
+import { UserAccountMenu } from "@/components/layout/UserAccountMenu";
 import { siteNavLinks } from "@/lib/site";
 
 function IconSearch({ className }: { className?: string }) {
@@ -12,20 +13,6 @@ function IconSearch({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M16.5 16.5L20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconAccount({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="9" r="3.25" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M5.5 19.25c1.6-2.7 4-4 6.5-4s4.9 1.3 6.5 4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
     </svg>
   );
 }
@@ -45,6 +32,7 @@ function IconCart({ className }: { className?: string }) {
 
 export function SiteHeader() {
   const { logoInNav, phase } = useGarage();
+  const { cart, openCart } = useCart();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -64,6 +52,8 @@ export function SiteHeader() {
       document.body.style.overflow = "";
     };
   }, [isMenuOpen, phase]);
+
+  const cartCount = cart.totalQuantity;
 
   return (
     <header
@@ -103,23 +93,23 @@ export function SiteHeader() {
           >
             <IconSearch className="h-[18px] w-[18px]" />
           </button>
-          <NotificationBell />
-          <Link
-            href="/garage"
-            aria-label="Garage Profile"
-            className="hidden h-10 w-10 place-items-center text-text-muted transition-colors hover:text-text sm:grid"
+          <UserAccountMenu />
+          <button
+            type="button"
+            aria-label={
+              cartCount > 0 ? `Cart, ${cartCount} items` : "Open cart"
+            }
+            className="relative grid h-10 w-10 place-items-center text-text-muted transition-colors hover:text-text"
             tabIndex={phase === "open" ? undefined : -1}
-          >
-            <IconAccount className="h-[18px] w-[18px]" />
-          </Link>
-          <Link
-            href="/garage/cart"
-            aria-label="Cart"
-            className="grid h-10 w-10 place-items-center text-text-muted transition-colors hover:text-text"
-            tabIndex={phase === "open" ? undefined : -1}
+            onClick={openCart}
           >
             <IconCart className="h-[18px] w-[18px]" />
-          </Link>
+            {cartCount > 0 ? (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-mono text-[9px] font-medium text-white">
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            ) : null}
+          </button>
           <button
             type="button"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -158,15 +148,31 @@ export function SiteHeader() {
               </Link>
             ))}
             <div className="mt-4 flex flex-wrap gap-6 pt-2 text-sm text-text-muted">
+              <Link href="/garage" onClick={() => setMenuOpen(false)}>
+                My Profile
+              </Link>
+              <Link href="/garage/orders" onClick={() => setMenuOpen(false)}>
+                Orders
+              </Link>
+              <Link href="/garage/wishlist" onClick={() => setMenuOpen(false)}>
+                Wishlist
+              </Link>
               <Link href="/notifications" onClick={() => setMenuOpen(false)}>
                 Notifications
               </Link>
-              <Link href="/garage" onClick={() => setMenuOpen(false)}>
-                Garage Profile
+              <Link href="/garage/settings" onClick={() => setMenuOpen(false)}>
+                Settings
               </Link>
-              <Link href="/garage/cart" onClick={() => setMenuOpen(false)}>
+              <button
+                type="button"
+                className="text-text-muted hover:text-text"
+                onClick={() => {
+                  setMenuOpen(false);
+                  openCart();
+                }}
+              >
                 Cart
-              </Link>
+              </button>
             </div>
           </nav>
         </div>

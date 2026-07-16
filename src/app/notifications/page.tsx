@@ -24,8 +24,8 @@ export default async function NotificationsPage() {
           Notifications
         </h1>
         <p className="mt-2 max-w-xl text-sm text-text-muted">
-          Real-time signals from your Garage, Community, Builds, Journal, and
-          future Marketplace.
+          Account alerts, order updates, comments, follows, and messages — from
+          your Garage, Community, Builds, Journal, and Store.
         </p>
       </div>
 

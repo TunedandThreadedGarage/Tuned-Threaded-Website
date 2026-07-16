@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { GarageNav } from "@/components/garage-profile/GarageNav";
+import { GarageChrome } from "@/components/garage-profile/GarageChrome";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { signOut } from "@/features/auth/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -47,32 +46,7 @@ export default async function GarageLayout({
     <>
       <SiteHeader />
       <div className="mx-auto w-full max-w-[1100px] px-5 pb-20 pt-24 md:px-8">
-        {user ? (
-          <>
-            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-metal">
-                  Member area
-                </p>
-                <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-text">
-                  Garage Profile
-                </h1>
-              </div>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className="text-sm text-text-muted transition-colors hover:text-text"
-                >
-                  Sign out
-                </button>
-              </form>
-            </div>
-            <GarageNav />
-            <div className="mt-8">{children}</div>
-          </>
-        ) : (
-          children
-        )}
+        <GarageChrome signedIn={Boolean(user)}>{children}</GarageChrome>
       </div>
     </>
   );

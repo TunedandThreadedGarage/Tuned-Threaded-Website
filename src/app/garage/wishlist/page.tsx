@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -33,7 +34,8 @@ export default async function WishlistPage() {
           Wishlist
         </h2>
         <p className="mt-1 text-sm text-text-muted">
-          Save product refs until the shop launches. Placeholder-friendly.
+          Saved from the heart icon on product pages. Open anytime from your
+          account menu.
         </p>
       </div>
 
@@ -43,11 +45,33 @@ export default async function WishlistPage() {
         <ul className="divide-y divide-border border border-border">
           {items.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-4 px-4 py-4">
-              <div>
-                <p className="text-sm font-medium text-text">
-                  {item.product_name ?? item.product_ref}
-                </p>
-                <p className="font-mono text-xs text-text-muted">{item.product_ref}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                {item.product_image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.product_image_url}
+                    alt=""
+                    className="h-14 w-12 object-cover"
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  {item.product_ref.includes("/") ||
+                  item.product_ref.startsWith("gid://") ? (
+                    <p className="truncate text-sm font-medium text-text">
+                      {item.product_name ?? item.product_ref}
+                    </p>
+                  ) : (
+                    <Link
+                      href={`/store/${item.product_ref}`}
+                      className="truncate text-sm font-medium text-text hover:underline"
+                    >
+                      {item.product_name ?? item.product_ref}
+                    </Link>
+                  )}
+                  <p className="font-mono text-xs text-text-muted">
+                    {item.product_ref}
+                  </p>
+                </div>
               </div>
               <DeleteButton
                 label="Remove"

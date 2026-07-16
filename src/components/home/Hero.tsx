@@ -44,7 +44,7 @@ export function Hero() {
           people who stay after dark.
         </p>
         <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Button href="#shop" variant="primary">
+          <Button href="/store" variant="primary">
             Shop the Collection
           </Button>
           <Button href="/garage/sign-up" variant="secondary">

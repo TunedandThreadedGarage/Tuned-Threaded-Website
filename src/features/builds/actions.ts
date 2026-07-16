@@ -38,7 +38,7 @@ export async function createJournalEntry(
       ...(entry_date ? { entry_date } : {}),
     });
     if (error) return { error: error.message };
-    revalidatePath("/garage/journal");
+    revalidatePath("/journal");
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };
@@ -54,7 +54,7 @@ export async function deleteJournalEntry(id: string): Promise<ActionResult> {
       .eq("id", id)
       .eq("user_id", user.id);
     if (error) return { error: error.message };
-    revalidatePath("/garage/journal");
+    revalidatePath("/journal");
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };

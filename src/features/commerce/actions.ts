@@ -68,6 +68,52 @@ export async function removeWishlistItem(id: string): Promise<ActionResult> {
   }
 }
 
+export async function toggleWishlistProduct(input: {
+  product_ref: string;
+  product_name?: string | null;
+  product_image_url?: string | null;
+}): Promise<{ saved?: boolean; error?: string }> {
+  try {
+    const { supabase, user } = await requireUser();
+    const product_ref = input.product_ref.trim();
+    if (!product_ref) return { error: "Missing product." };
+
+    const { data: wishlist } = await supabase
+      .from("wishlists")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+    if (!wishlist) return { error: "Wishlist not found." };
+
+    const { data: existing } = await supabase
+      .from("wishlist_items")
+      .select("id")
+      .eq("wishlist_id", wishlist.id)
+      .eq("product_ref", product_ref)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from("wishlist_items").delete().eq("id", existing.id);
+      revalidatePath("/garage/wishlist");
+      revalidatePath("/store");
+      return { saved: false };
+    }
+
+    const { error } = await supabase.from("wishlist_items").insert({
+      wishlist_id: wishlist.id,
+      product_ref,
+      product_name: input.product_name?.trim() || null,
+      product_image_url: input.product_image_url ?? null,
+    });
+    if (error) return { error: error.message };
+    revalidatePath("/garage/wishlist");
+    revalidatePath("/store");
+    return { saved: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
 export async function addCartItem(
   _prev: ActionResult,
   formData: FormData,

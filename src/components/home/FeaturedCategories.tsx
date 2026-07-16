@@ -1,8 +1,24 @@
 import { categories } from "@/lib/site";
 import { CategoryCard } from "@/components/ui/CategoryCard";
 import { FadeIn } from "@/components/ui/FadeIn";
+import type { ShopCollection } from "@/lib/shopify/types";
 
-export function FeaturedCategories() {
+export function FeaturedCategories({
+  collections,
+}: {
+  collections?: ShopCollection[];
+}) {
+  const items =
+    collections && collections.length > 0
+      ? collections
+      : categories.map((c) => ({
+          id: c.id,
+          handle: c.id,
+          title: c.title,
+          description: c.description,
+          href: c.href,
+        }));
+
   return (
     <section
       id="garage"
@@ -19,7 +35,7 @@ export function FeaturedCategories() {
         </FadeIn>
 
         <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
-          {categories.map((category, index) => (
+          {items.map((category, index) => (
             <CategoryCard
               key={category.id}
               title={category.title}

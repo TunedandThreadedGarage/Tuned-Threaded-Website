@@ -14,7 +14,7 @@ export default async function SettingsHubPage() {
   return (
     <SettingsShell
       title="Settings"
-      description="Communication, notifications, privacy, account, garage, and store controls — kept quiet and deliberate."
+      description="Account preferences, privacy, notifications, password, connected accounts, and theme — kept quiet and deliberate."
     >
       <ul className="grid gap-3 sm:grid-cols-2">
         {SETTINGS_SECTIONS.map((section) => (

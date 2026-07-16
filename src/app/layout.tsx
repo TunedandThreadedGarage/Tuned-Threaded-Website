@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit, Manrope, JetBrains_Mono } from "next/font/google";
+import { CartProvider } from "@/components/cart/CartProvider";
 import "./globals.css";
 
 const fontDisplay = Outfit({
@@ -36,7 +37,9 @@ export default function RootLayout({
       lang="en"
       className={`${fontDisplay.variable} ${fontBody.variable} ${fontMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-bg text-text">{children}</body>
+      <body className="min-h-full flex flex-col bg-bg text-text">
+        <CartProvider>{children}</CartProvider>
+      </body>
     </html>
   );
 }
