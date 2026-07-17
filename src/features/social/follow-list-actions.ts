@@ -36,21 +36,22 @@ export async function loadFollowList(input: {
 
     if (!profile) return { members: [], error: "Garage not found." };
 
-    const { data: follows } =
-      input.mode === "followers"
-        ? await supabase
-            .from("follows")
-            .select("follower_id")
-            .eq("following_id", profile.id)
-        : await supabase
-            .from("follows")
-            .select("following_id")
-            .eq("follower_id", profile.id);
-
-    const ids =
-      input.mode === "followers"
-        ? (follows ?? []).map((f) => f.follower_id)
-        : (follows ?? []).map((f) => f.following_id);
+    let ids: string[] = [];
+    if (input.mode === "followers") {
+      const { data: follows, error: followsError } = await supabase
+        .from("follows")
+        .select("follower_id")
+        .eq("following_id", profile.id);
+      if (followsError) return { members: [], error: followsError.message };
+      ids = (follows ?? []).map((f) => f.follower_id);
+    } else {
+      const { data: follows, error: followsError } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", profile.id);
+      if (followsError) return { members: [], error: followsError.message };
+      ids = (follows ?? []).map((f) => f.following_id);
+    }
 
     if (!ids.length) return { members: [] };
 
