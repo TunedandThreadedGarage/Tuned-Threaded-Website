@@ -6,18 +6,24 @@ const sendEmail = vi.fn();
 const createAdminClient = vi.fn();
 const isSupabaseConfigured = vi.fn(() => true);
 const isEmailConfigured = vi.fn(() => true);
-const renderNotificationEmail = vi.fn(
-  (_input?: unknown) => ({
-    subject: "Test",
-    html: "<p>hi</p>",
-  }),
-);
+const createBareClient = vi.fn();
+const renderNotificationEmail = vi.fn((_input?: unknown) => ({
+  subject: "Test",
+  html: "<p>hi</p>",
+}));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => createAdminClient(),
 }));
 vi.mock("@/lib/supabase/config", () => ({
   isSupabaseConfigured: () => isSupabaseConfigured(),
+  getSupabaseEnv: () => ({
+    url: "https://example.supabase.co",
+    key: "anon-key",
+  }),
+}));
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (...args: unknown[]) => createBareClient(...args),
 }));
 vi.mock("@/lib/email/client", () => ({
   isEmailConfigured: () => isEmailConfigured(),
@@ -31,9 +37,14 @@ describe("processNotificationEmailQueue", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    process.env.NOTIFY_LOOKUP_SECRET = "test-secret";
     isSupabaseConfigured.mockReturnValue(true);
     isEmailConfigured.mockReturnValue(true);
     createAdminClient.mockReturnValue({
+      rpc,
+      from,
+    });
+    createBareClient.mockReturnValue({
       rpc,
       from,
     });
@@ -61,12 +72,24 @@ describe("processNotificationEmailQueue", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("skips when service role is missing", async () => {
+  it("falls back to anon+secret when service role is missing", async () => {
     createAdminClient.mockReturnValue(null);
+    rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === "claim_due_notification_emails") {
+        expect(args.p_secret).toBe("test-secret");
+        return { data: [], error: null };
+      }
+      return { data: null, error: null };
+    });
+
     const { processNotificationEmailQueue } = await import("./queueProcessor");
     const result = await processNotificationEmailQueue();
     expect(result.claimed).toBe(0);
-    expect(rpc).not.toHaveBeenCalled();
+    expect(createBareClient).toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith(
+      "claim_due_notification_emails",
+      expect.objectContaining({ p_secret: "test-secret" }),
+    );
   });
 
   it("sends claimed rows and finalizes with provider id", async () => {

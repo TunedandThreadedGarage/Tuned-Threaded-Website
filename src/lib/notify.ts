@@ -312,26 +312,11 @@ export async function notify(
       ? `${input.userId}:${eventKey}:${conversationId}:${Date.now()}`
       : `${input.userId}:${eventKey}:${Date.now()}`;
 
-  // Queue RPC is service_role-only.
-  const admin = createAdminClient();
-  if (!admin) {
-    logNotify("email_queue_failed", {
-      type: input.type,
-      userId: input.userId,
-      error: "missing_service_role",
-    });
-    return {
-      ok: false,
-      inAppCreated,
-      emailAttempted,
-      emailSent: false,
-      presence,
-      skippedReason: "missing_service_role",
-    };
-  }
+  // Prefer service-role; fall back to the caller's authenticated client.
+  const queueClient = createAdminClient() ?? supabase;
 
   try {
-    const { data: queueId, error: queueError } = await admin.rpc(
+    const { data: queueId, error: queueError } = await queueClient.rpc(
       "queue_notification_email",
       {
         p_user_id: input.userId,

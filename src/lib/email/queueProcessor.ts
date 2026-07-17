@@ -1,14 +1,15 @@
 /**
  * Drains the delayed notification email queue.
  *
- * Uses the service-role client. `claim_due_notification_emails` cancels rows
- * whose recipient came back online, already read the notification/message,
- * or disabled email — then claims what's left. We render + send via Resend
- * and finalize with provider message IDs / retry-aware failures.
+ * Prefers the service-role client; falls back to the anon key + secret-guarded
+ * RPCs when SUPABASE_SERVICE_ROLE_KEY is unset. `claim_due_notification_emails`
+ * cancels rows whose recipient came back online, already read the
+ * notification/message, or disabled email — then claims what's left.
  */
 
+import { createClient as createBareClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getSupabaseEnv, isSupabaseConfigured } from "@/lib/supabase/config";
 import { renderNotificationEmail } from "@/lib/email/dispatch";
 import { isEmailConfigured, sendEmail } from "@/lib/email/client";
 
@@ -44,38 +45,51 @@ function log(step: string, fields: Record<string, unknown> = {}) {
   );
 }
 
+function queueClient() {
+  const admin = createAdminClient();
+  if (admin) return { supabase: admin, mode: "service_role" as const };
+  if (!isSupabaseConfigured()) return null;
+  const { url, key } = getSupabaseEnv();
+  return {
+    supabase: createBareClient(url, key, {
+      auth: { persistSession: false },
+    }),
+    mode: "anon_secret" as const,
+  };
+}
+
 async function finalize(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
+  mode: "service_role" | "anon_secret",
   row: QueueRow,
   status: "sent" | "failed" | "cancelled",
   detail?: string,
   providerMessageId?: string | null,
 ) {
+  if (mode === "service_role") {
+    const { error } = await supabase.rpc("finalize_notification_email", {
+      p_id: row.id,
+      p_status: status,
+      p_error: detail ?? null,
+      p_provider_message_id: providerMessageId ?? null,
+    });
+    if (!error) return;
+    log("finalize_retry_secret", { queueId: row.id, error: error.message });
+  }
+
+  const secret = process.env.NOTIFY_LOOKUP_SECRET;
+  if (!secret) {
+    log("finalize_failed", { queueId: row.id, error: "missing_secret" });
+    return;
+  }
   const { error } = await supabase.rpc("finalize_notification_email", {
+    p_secret: secret,
     p_id: row.id,
     p_status: status,
     p_error: detail ?? null,
-    p_provider_message_id: providerMessageId ?? null,
   });
   if (error) {
-    // Fallback to secret-guarded 4-arg overload if needed.
-    const secret = process.env.NOTIFY_LOOKUP_SECRET;
-    if (secret) {
-      const fallback = await supabase.rpc("finalize_notification_email", {
-        p_secret: secret,
-        p_id: row.id,
-        p_status: status,
-        p_error: detail ?? null,
-      });
-      if (fallback.error) {
-        log("finalize_failed", {
-          queueId: row.id,
-          error: fallback.error.message,
-        });
-      }
-      return;
-    }
     log("finalize_failed", { queueId: row.id, error: error.message });
   }
 }
@@ -88,52 +102,73 @@ export async function processNotificationEmailQueue(
     return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
   }
 
-  const supabase = createAdminClient();
-  if (!supabase) {
-    log("skipped", { reason: "missing_service_role" });
+  const client = queueClient();
+  if (!client) {
+    log("skipped", { reason: "missing_supabase_client" });
     return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
   }
+  const { supabase, mode } = client;
 
   if (!isEmailConfigured()) {
     log("skipped", { reason: "missing_RESEND_API_KEY" });
-    // Do not claim rows when we cannot send — leave them pending.
     return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
   }
 
-  const { data, error } = await supabase.rpc("claim_due_notification_emails", {
-    p_limit: limit,
-  });
-  if (error) {
-    // Transitional secret-guarded overload
+  let rows: QueueRow[] = [];
+
+  if (mode === "service_role") {
+    const { data, error } = await supabase.rpc("claim_due_notification_emails", {
+      p_limit: limit,
+    });
+    if (error) {
+      const secret = process.env.NOTIFY_LOOKUP_SECRET;
+      if (!secret) {
+        log("claim_failed", { error: error.message });
+        return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
+      }
+      const fallback = await supabase.rpc("claim_due_notification_emails", {
+        p_secret: secret,
+        p_limit: limit,
+      });
+      if (fallback.error) {
+        log("claim_failed", { error: fallback.error.message });
+        return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
+      }
+      rows = (fallback.data ?? []) as QueueRow[];
+    } else {
+      rows = (data ?? []) as QueueRow[];
+    }
+  } else {
     const secret = process.env.NOTIFY_LOOKUP_SECRET;
     if (!secret) {
-      log("claim_failed", { error: error.message });
+      log("skipped", { reason: "missing_NOTIFY_LOOKUP_SECRET" });
       return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
     }
-    const fallback = await supabase.rpc("claim_due_notification_emails", {
+    const { data, error } = await supabase.rpc("claim_due_notification_emails", {
       p_secret: secret,
       p_limit: limit,
     });
-    if (fallback.error) {
-      log("claim_failed", { error: fallback.error.message });
+    if (error) {
+      log("claim_failed", { error: error.message });
       return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
     }
-    return processRows(supabase, (fallback.data ?? []) as QueueRow[]);
+    rows = (data ?? []) as QueueRow[];
   }
 
-  return processRows(supabase, (data ?? []) as QueueRow[]);
+  return processRows(supabase, mode, rows);
 }
 
 async function processRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
+  mode: "service_role" | "anon_secret",
   rows: QueueRow[],
 ): Promise<QueueProcessResult> {
   if (rows.length === 0) {
     return { claimed: 0, sent: 0, failed: 0, cancelled: 0 };
   }
 
-  log("claimed", { count: rows.length });
+  log("claimed", { count: rows.length, mode });
 
   let sent = 0;
   let failed = 0;
@@ -148,7 +183,7 @@ async function processRows(
       const idx = cursor;
       cursor += 1;
       const row = rows[idx];
-      await handleRow(supabase, row, {
+      await handleRow(supabase, mode, row, {
         onSent: () => {
           sent += 1;
         },
@@ -170,6 +205,7 @@ async function processRows(
 async function handleRow(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
+  mode: "service_role" | "anon_secret",
   row: QueueRow,
   counters: {
     onSent: () => void;
@@ -184,7 +220,7 @@ async function handleRow(
       userId: row.user_id,
       type: row.type,
     });
-    await finalize(supabase, row, "failed", "no_recipient_email");
+    await finalize(supabase, mode, row, "failed", "no_recipient_email");
     return;
   }
 
@@ -207,7 +243,7 @@ async function handleRow(
         type: row.type,
         reason: "user_active_presend",
       });
-      await finalize(supabase, row, "cancelled", "user_active");
+      await finalize(supabase, mode, row, "cancelled", "user_active");
       return;
     }
   } catch {
@@ -251,7 +287,7 @@ async function handleRow(
       resendId: "id" in result ? result.id : null,
       resendResponse: result,
     });
-    await finalize(supabase, row, "sent", undefined, result.id ?? null);
+    await finalize(supabase, mode, row, "sent", undefined, result.id ?? null);
   } else {
     counters.onFailed();
     log("send_failed", {
@@ -261,6 +297,6 @@ async function handleRow(
       error: result.error,
       attempt: row.attempts ?? 1,
     });
-    await finalize(supabase, row, "failed", result.error);
+    await finalize(supabase, mode, row, "failed", result.error);
   }
 }

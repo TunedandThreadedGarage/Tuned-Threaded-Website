@@ -451,7 +451,7 @@ $$;
 
 revoke all on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid, text) from public;
 revoke all on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid, text) from anon;
-revoke all on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid, text) from authenticated;
+grant execute on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid, text) to authenticated;
 grant execute on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid, text) to service_role;
 
 -- Back-compat 7-arg overload for older callers
@@ -479,7 +479,7 @@ $$;
 
 revoke all on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid) from public;
 revoke all on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid) from anon;
-revoke all on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid) from authenticated;
+grant execute on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid) to authenticated;
 grant execute on function public.queue_notification_email(uuid, text, text, jsonb, integer, uuid, uuid) to service_role;
 
 -- ============================================================
@@ -792,8 +792,9 @@ end;
 $$;
 
 revoke all on function public.claim_due_notification_emails(text, integer) from public;
-revoke all on function public.claim_due_notification_emails(text, integer) from anon;
-revoke all on function public.claim_due_notification_emails(text, integer) from authenticated;
+-- Secret is checked inside the function body.
+grant execute on function public.claim_due_notification_emails(text, integer) to anon;
+grant execute on function public.claim_due_notification_emails(text, integer) to authenticated;
 grant execute on function public.claim_due_notification_emails(text, integer) to service_role;
 
 create or replace function public.finalize_notification_email(
@@ -909,8 +910,8 @@ end;
 $$;
 
 revoke all on function public.finalize_notification_email(text, uuid, text, text) from public;
-revoke all on function public.finalize_notification_email(text, uuid, text, text) from anon;
-revoke all on function public.finalize_notification_email(text, uuid, text, text) from authenticated;
+grant execute on function public.finalize_notification_email(text, uuid, text, text) to anon;
+grant execute on function public.finalize_notification_email(text, uuid, text, text) to authenticated;
 grant execute on function public.finalize_notification_email(text, uuid, text, text) to service_role;
 
 -- ============================================================

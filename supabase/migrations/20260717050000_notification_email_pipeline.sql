@@ -80,7 +80,7 @@ $$;
 
 revoke all on function public.get_notification_email(uuid, text) from public;
 revoke all on function public.get_notification_email(uuid, text) from anon;
-revoke all on function public.get_notification_email(uuid, text) from authenticated;
+grant execute on function public.get_notification_email(uuid, text) to authenticated;
 grant execute on function public.get_notification_email(uuid, text) to service_role;
 
 -- Canonical preference seed (followers email on; trending off).
