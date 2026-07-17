@@ -564,6 +564,16 @@ export async function addCommunityComment(
       .single();
     if (error) return { error: error.message };
 
+    const { flagContentIfNeeded } = await import(
+      "@/lib/moderation/behaviorScanner"
+    );
+    await flagContentIfNeeded(supabase, {
+      sourceType: "comment",
+      sourceId: data.id,
+      userId: user.id,
+      body,
+    });
+
     const { data: post } = await supabase
       .from("community_posts")
       .select("user_id")

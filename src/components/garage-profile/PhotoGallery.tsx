@@ -1,13 +1,16 @@
 import Image from "next/image";
 import type { GarageAlbum, GaragePhoto } from "@/types/database";
 import { BeforeAfterCompare } from "@/components/garage-profile/BeforeAfterCompare";
+import { ReportButton } from "@/features/moderation/components/ReportButton";
 
 export function PhotoGallery({
   albums,
   photos,
+  ownerUserId,
 }: {
   albums: GarageAlbum[];
   photos: GaragePhoto[];
+  ownerUserId?: string;
 }) {
   if (albums.length === 0) {
     return <p className="text-sm text-text-muted">No public albums yet.</p>;
@@ -46,7 +49,7 @@ export function PhotoGallery({
                 {albumPhotos.map((photo) => (
                   <figure
                     key={photo.id}
-                    className="relative aspect-square overflow-hidden border border-border bg-surface-elevated"
+                    className="group relative aspect-square overflow-hidden border border-border bg-surface-elevated"
                   >
                     <Image
                       src={photo.url}
@@ -59,6 +62,17 @@ export function PhotoGallery({
                       <figcaption className="absolute inset-x-0 bottom-0 bg-bg/70 px-2 py-1 text-[10px] text-text">
                         {photo.caption}
                       </figcaption>
+                    ) : null}
+                    {ownerUserId ? (
+                      <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <ReportButton
+                          targetType="gallery_photo"
+                          targetId={photo.id}
+                          targetUserId={ownerUserId}
+                          label="Report"
+                          className="bg-black/60 px-2 py-1 text-[10px] text-white hover:text-accent"
+                        />
+                      </div>
                     ) : null}
                   </figure>
                 ))}

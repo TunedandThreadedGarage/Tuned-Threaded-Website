@@ -12,6 +12,7 @@ import {
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { MediaUpload } from "@/components/media/MediaUpload";
+import { ReportButton } from "@/features/moderation/components/ReportButton";
 import type { GarageAlbum, GaragePhoto } from "@/types/database";
 
 const initial: ActionResult = {};
@@ -85,7 +86,7 @@ export function GalleryManager({
                   {albumPhotos.slice(0, 3).map((p) => (
                     <div
                       key={p.id}
-                      className="relative aspect-square overflow-hidden bg-surface-elevated"
+                      className="group relative aspect-square overflow-hidden bg-surface-elevated"
                     >
                       <Image
                         src={p.url}
@@ -94,6 +95,15 @@ export function GalleryManager({
                         className="object-cover"
                         sizes="120px"
                       />
+                      <div className="absolute inset-x-0 bottom-0 bg-black/55 p-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <ReportButton
+                          targetType="gallery_photo"
+                          targetId={p.id}
+                          targetUserId={userId}
+                          label="Report"
+                          className="text-[9px] text-white/80 hover:text-white"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -9,6 +9,7 @@ import { useGarage } from "@/components/garage/GarageExperience";
 
 const MENU_ITEMS = [
   { href: "/garage", label: "My Profile" },
+  { href: "/messages", label: "Messages" },
   { href: "/garage/orders", label: "Orders" },
   { href: "/garage/wishlist", label: "Wishlist" },
   { href: "/notifications", label: "Notifications" },

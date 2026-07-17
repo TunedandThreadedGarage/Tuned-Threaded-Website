@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "@/components/garage-profile/Avatar";
 import { FollowButton } from "@/features/social/components/FollowButton";
@@ -9,6 +9,8 @@ import {
   loadFollowList,
   type FollowListMember,
 } from "@/features/social/follow-list-actions";
+
+const PAGE_SIZE = 30;
 
 export function FollowListModal({
   open,
@@ -23,24 +25,55 @@ export function FollowListModal({
 }) {
   const [q, setQ] = useState("");
   const [members, setMembers] = useState<FollowListMember[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const offsetRef = useRef(0);
 
   const refresh = useCallback(
     (query?: string) => {
       start(async () => {
+        offsetRef.current = 0;
         const res = await loadFollowList({
           username,
           mode,
           q: query,
+          offset: 0,
+          limit: PAGE_SIZE,
         });
         if (res.error) setError(res.error);
         else setError(null);
         setMembers(res.members);
+        setHasMore(res.hasMore);
+        offsetRef.current = res.members.length;
       });
     },
     [username, mode],
   );
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || pending) return;
+    setLoadingMore(true);
+    const res = await loadFollowList({
+      username,
+      mode,
+      q,
+      offset: offsetRef.current,
+      limit: PAGE_SIZE,
+    });
+    if (!res.error) {
+      setMembers((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const next = res.members.filter((m) => !seen.has(m.id));
+        return [...prev, ...next];
+      });
+      setHasMore(res.hasMore);
+      offsetRef.current += res.members.length;
+    }
+    setLoadingMore(false);
+  }, [hasMore, loadingMore, pending, username, mode, q]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +99,20 @@ export function FollowListModal({
     const t = window.setTimeout(() => refresh(q), 220);
     return () => window.clearTimeout(t);
   }, [q, open, refresh]);
+
+  useEffect(() => {
+    if (!open || !hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void loadMore();
+      },
+      { rootMargin: "120px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [open, hasMore, loadMore, members.length]);
 
   return (
     <AnimatePresence>
@@ -130,7 +177,11 @@ export function FollowListModal({
               ) : null}
               {!pending && members.length === 0 && !error ? (
                 <p className="px-5 py-8 text-center text-sm text-text-muted">
-                  {q ? "No matches." : mode === "followers" ? "No followers yet." : "Not following anyone yet."}
+                  {q
+                    ? "No matches."
+                    : mode === "followers"
+                      ? "No followers yet."
+                      : "Not following anyone yet."}
                 </p>
               ) : null}
               <ul className="divide-y divide-border">
@@ -174,13 +225,19 @@ export function FollowListModal({
                           onClick={onClose}
                           className="border border-border px-3 py-2 text-xs text-text-muted transition-colors hover:border-white/40 hover:text-text"
                         >
-                          Visit
+                          View Profile
                         </Link>
                       ) : null}
                     </div>
                   </li>
                 ))}
               </ul>
+              <div ref={sentinelRef} className="h-4" />
+              {loadingMore ? (
+                <p className="px-5 py-3 text-center text-xs text-text-muted">
+                  Loading more…
+                </p>
+              ) : null}
             </div>
           </motion.div>
         </>

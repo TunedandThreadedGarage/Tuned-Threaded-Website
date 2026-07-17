@@ -10,6 +10,7 @@ import { LikeButton } from "@/features/social/components/LikeButton";
 import { CommentForm } from "@/features/social/components/CommentForm";
 import { ShareButton } from "@/features/social/components/ShareButton";
 import { SaveBuildButton } from "@/features/social/components/SaveBuildButton";
+import { ReportButton } from "@/features/moderation/components/ReportButton";
 import { deleteBuild } from "@/features/builds/actions";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import type { Build } from "@/types/database";
@@ -196,6 +197,13 @@ export default async function BuildDetailPage({
           />
         ) : null}
         <ShareButton title={build.title} url={shareUrl} />
+        {user && !isOwner ? (
+          <ReportButton
+            targetType="build"
+            targetId={build.id}
+            targetUserId={build.user_id}
+          />
+        ) : null}
         {isOwner ? (
           <DeleteButton
             label="Delete build"
@@ -216,15 +224,24 @@ export default async function BuildDetailPage({
                 key={comment.id}
                 className="border border-border bg-surface p-4"
               >
-                <div className="flex items-center gap-2">
-                  <Avatar
-                    url={author?.avatar_url}
-                    name={author?.display_name ?? author?.username}
-                    size="sm"
-                  />
-                  <p className="text-sm font-medium text-text">
-                    {author?.display_name ?? "Member"}
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Avatar
+                      url={author?.avatar_url}
+                      name={author?.display_name ?? author?.username}
+                      size="sm"
+                    />
+                    <p className="text-sm font-medium text-text">
+                      {author?.display_name ?? "Member"}
+                    </p>
+                  </div>
+                  {user && user.id !== comment.user_id ? (
+                    <ReportButton
+                      targetType="comment"
+                      targetId={comment.id}
+                      targetUserId={comment.user_id}
+                    />
+                  ) : null}
                 </div>
                 <p className="mt-2 text-sm text-text-muted">{comment.body}</p>
               </li>

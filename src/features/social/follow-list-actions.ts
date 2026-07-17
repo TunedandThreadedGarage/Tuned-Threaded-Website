@@ -17,16 +17,27 @@ export type FollowListMember = {
   isSelf: boolean;
 };
 
+const PAGE_SIZE = 30;
+
 export async function loadFollowList(input: {
   username: string;
   mode: "followers" | "following";
   q?: string;
-}): Promise<{ members: FollowListMember[]; error?: string }> {
+  offset?: number;
+  limit?: number;
+}): Promise<{
+  members: FollowListMember[];
+  hasMore: boolean;
+  error?: string;
+}> {
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    const limit = Math.min(input.limit ?? PAGE_SIZE, 50);
+    const offset = Math.max(0, input.offset ?? 0);
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -34,7 +45,7 @@ export async function loadFollowList(input: {
       .eq("username", input.username.toLowerCase())
       .maybeSingle();
 
-    if (!profile) return { members: [], error: "Garage not found." };
+    if (!profile) return { members: [], hasMore: false, error: "Garage not found." };
 
     let ids: string[] = [];
     if (input.mode === "followers") {
@@ -42,23 +53,25 @@ export async function loadFollowList(input: {
         .from("follows")
         .select("follower_id")
         .eq("following_id", profile.id);
-      if (followsError) return { members: [], error: followsError.message };
+      if (followsError) return { members: [], hasMore: false, error: followsError.message };
       ids = (follows ?? []).map((f) => f.follower_id);
     } else {
       const { data: follows, error: followsError } = await supabase
         .from("follows")
         .select("following_id")
         .eq("follower_id", profile.id);
-      if (followsError) return { members: [], error: followsError.message };
+      if (followsError) return { members: [], hasMore: false, error: followsError.message };
       ids = (follows ?? []).map((f) => f.following_id);
     }
 
-    if (!ids.length) return { members: [] };
+    if (!ids.length) return { members: [], hasMore: false };
 
     let query = supabase
       .from("profiles")
       .select("id, username, display_name, avatar_url, skill_level")
-      .in("id", ids);
+      .in("id", ids)
+      .order("display_name", { ascending: true, nullsFirst: false })
+      .range(offset, offset + limit - 1);
 
     const q = input.q?.trim();
     if (q) {
@@ -69,7 +82,7 @@ export async function loadFollowList(input: {
     }
 
     const { data: profiles, error } = await query;
-    if (error) return { members: [], error: error.message };
+    if (error) return { members: [], hasMore: false, error: error.message };
 
     const memberIds = (profiles ?? []).map((p) => p.id);
 
@@ -110,16 +123,14 @@ export async function loadFollowList(input: {
       };
     });
 
-    members.sort((a, b) =>
-      (a.displayName || a.username || "").localeCompare(
-        b.displayName || b.username || "",
-      ),
-    );
-
-    return { members };
+    return {
+      members,
+      hasMore: (profiles ?? []).length >= limit,
+    };
   } catch (e) {
     return {
       members: [],
+      hasMore: false,
       error: e instanceof Error ? e.message : "Failed to load list.",
     };
   }

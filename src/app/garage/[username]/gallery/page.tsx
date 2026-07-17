@@ -50,7 +50,11 @@ export default async function PublicGalleryPage({
           {profile.display_name ?? username} · Gallery
         </h1>
       </div>
-      <PhotoGallery albums={albums ?? []} photos={photos ?? []} />
+      <PhotoGallery
+        albums={albums ?? []}
+        photos={photos ?? []}
+        ownerUserId={profile.id}
+      />
     </div>
   );
 }

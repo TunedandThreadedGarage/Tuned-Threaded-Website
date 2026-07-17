@@ -134,6 +134,89 @@ export type Follow = {
   created_at: string;
 };
 
+export type UserBlock = {
+  blocker_id: string;
+  blocked_id: string;
+  created_at: string;
+};
+
+export type DmConversationStatus = "inbox" | "request" | "declined";
+
+export type DmConversation = {
+  id: string;
+  status: DmConversationStatus;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DmParticipant = {
+  conversation_id: string;
+  user_id: string;
+  last_read_at: string | null;
+  deleted_at: string | null;
+  joined_at: string;
+};
+
+export type DmMessage = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  image_url: string | null;
+  created_at: string;
+  deleted_at: string | null;
+};
+
+export type ReportReason =
+  | "harassment"
+  | "hate_speech"
+  | "spam"
+  | "impersonation"
+  | "explicit"
+  | "scam"
+  | "other";
+
+export type ReportTargetType =
+  | "profile"
+  | "build"
+  | "gallery_photo"
+  | "journal_entry"
+  | "comment"
+  | "dm_conversation"
+  | "dm_message";
+
+export type ReportStatus = "open" | "reviewed" | "actioned" | "dismissed";
+
+export type ContentReport = {
+  id: string;
+  reporter_id: string;
+  target_type: ReportTargetType;
+  target_id: string;
+  target_user_id: string | null;
+  reason: ReportReason;
+  details: string | null;
+  status: ReportStatus;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+};
+
+export type ModerationFlag = {
+  id: string;
+  source_type: string;
+  source_id: string;
+  user_id: string | null;
+  category: string;
+  excerpt: string | null;
+  score: number;
+  status: ReportStatus;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+};
+
 export type Notification = {
   id: string;
   user_id: string;
@@ -703,6 +786,68 @@ export type Database = {
         Update: Partial<JournalEntry>;
       };
       follows: { Row: Follow; Insert: Follow; Update: Partial<Follow> };
+      user_blocks: {
+        Row: UserBlock;
+        Insert: UserBlock;
+        Update: Partial<UserBlock>;
+      };
+      dm_conversations: {
+        Row: DmConversation;
+        Insert: Omit<
+          DmConversation,
+          "id" | "created_at" | "updated_at" | "status" | "last_message_at" | "last_message_preview"
+        > & {
+          id?: string;
+          status?: DmConversationStatus;
+          last_message_at?: string | null;
+          last_message_preview?: string | null;
+        };
+        Update: Partial<DmConversation>;
+      };
+      dm_participants: {
+        Row: DmParticipant;
+        Insert: Omit<DmParticipant, "joined_at" | "last_read_at" | "deleted_at"> & {
+          joined_at?: string;
+          last_read_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: Partial<DmParticipant>;
+      };
+      dm_messages: {
+        Row: DmMessage;
+        Insert: Omit<DmMessage, "id" | "created_at" | "deleted_at" | "image_url"> & {
+          id?: string;
+          image_url?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: Partial<DmMessage>;
+      };
+      content_reports: {
+        Row: ContentReport;
+        Insert: Omit<
+          ContentReport,
+          "id" | "created_at" | "status" | "reviewed_at" | "reviewed_by" | "details" | "target_user_id"
+        > & {
+          id?: string;
+          status?: ReportStatus;
+          details?: string | null;
+          target_user_id?: string | null;
+        };
+        Update: Partial<ContentReport>;
+      };
+      moderation_flags: {
+        Row: ModerationFlag;
+        Insert: Omit<
+          ModerationFlag,
+          "id" | "created_at" | "status" | "reviewed_at" | "reviewed_by" | "excerpt" | "score"
+        > & {
+          id?: string;
+          status?: ReportStatus;
+          excerpt?: string | null;
+          score?: number;
+        };
+        Update: Partial<ModerationFlag>;
+      };
       notifications: {
         Row: Notification;
         Insert: Omit<

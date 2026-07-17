@@ -153,6 +153,9 @@ export function SiteHeader() {
               <Link href="/garage" onClick={() => setMenuOpen(false)}>
                 My Profile
               </Link>
+              <Link href="/messages" onClick={() => setMenuOpen(false)}>
+                Messages
+              </Link>
               <Link href="/garage/orders" onClick={() => setMenuOpen(false)}>
                 Orders
               </Link>

@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { loadGarageProfileBundle } from "@/lib/garage-profile-data";
 import { GarageProfileView } from "@/components/garage-profile/GarageProfileView";
 import { FollowButton } from "@/features/social/components/FollowButton";
+import { MessageButton } from "@/features/messages/components/MessageButton";
+import { ReportButton } from "@/features/moderation/components/ReportButton";
 import { GARAGE_RESERVED } from "@/lib/garage-routes";
 
 export default async function PublicGaragePage({
@@ -49,10 +51,18 @@ export default async function PublicGaragePage({
       username={profile.username}
       actions={
         !isOwner && user ? (
-          <FollowButton
-            followingId={profile.id}
-            initiallyFollowing={Boolean(followRow)}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <FollowButton
+              followingId={profile.id}
+              initiallyFollowing={Boolean(followRow)}
+            />
+            <MessageButton peerUserId={profile.id} />
+            <ReportButton
+              targetType="profile"
+              targetId={profile.id}
+              targetUserId={profile.id}
+            />
+          </div>
         ) : null
       }
     />

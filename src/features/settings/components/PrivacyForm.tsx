@@ -39,7 +39,8 @@ export function PrivacyForm({ settings }: { settings: CommunicationSettings }) {
       <div>
         <p className="text-sm text-text">Who can message you</p>
         <p className="mt-0.5 text-xs text-text-muted">
-          Direct messaging arrives with Marketplace messaging later.
+          Controls who can start a direct message. Mutual follows go to Inbox;
+          one-way follows land in Message Requests.
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
           {(

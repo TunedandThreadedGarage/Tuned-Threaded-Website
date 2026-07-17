@@ -151,12 +151,26 @@ export async function addBuildComment(
     const body = String(formData.get("body") ?? "").trim();
     if (!buildId || !body) return { error: "Comment cannot be empty." };
 
-    const { error } = await supabase.from("build_comments").insert({
-      build_id: buildId,
-      user_id: user.id,
+    const { data: inserted, error } = await supabase
+      .from("build_comments")
+      .insert({
+        build_id: buildId,
+        user_id: user.id,
+        body,
+      })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+
+    const { flagContentIfNeeded } = await import(
+      "@/lib/moderation/behaviorScanner"
+    );
+    await flagContentIfNeeded(supabase, {
+      sourceType: "comment",
+      sourceId: inserted.id,
+      userId: user.id,
       body,
     });
-    if (error) return { error: error.message };
 
     const { data: build } = await supabase
       .from("builds")

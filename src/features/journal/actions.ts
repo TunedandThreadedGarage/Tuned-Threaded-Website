@@ -102,6 +102,15 @@ export async function upsertJournalEntry(
         .eq("id", id)
         .eq("user_id", user.id);
       if (error) return { error: error.message };
+      const { flagContentIfNeeded } = await import(
+        "@/lib/moderation/behaviorScanner"
+      );
+      await flagContentIfNeeded(supabase, {
+        sourceType: "journal_entry",
+        sourceId: id,
+        userId: user.id,
+        body: `${title}\n${body}`,
+      });
       revalidatePath("/journal");
       return { success: true, id };
     }
@@ -112,6 +121,15 @@ export async function upsertJournalEntry(
       .select("id")
       .single();
     if (error) return { error: error.message };
+    const { flagContentIfNeeded } = await import(
+      "@/lib/moderation/behaviorScanner"
+    );
+    await flagContentIfNeeded(supabase, {
+      sourceType: "journal_entry",
+      sourceId: data.id,
+      userId: user.id,
+      body: `${title}\n${body}`,
+    });
     revalidatePath("/journal");
     return { success: true, id: data.id };
   } catch (e) {
@@ -188,12 +206,26 @@ export async function addJournalComment(
     const body = String(formData.get("body") ?? "").trim();
     if (!journal_id || !body) return { error: "Comment required." };
 
-    const { error } = await supabase.from("journal_comments").insert({
-      journal_id,
-      user_id: user.id,
+    const { data: inserted, error } = await supabase
+      .from("journal_comments")
+      .insert({
+        journal_id,
+        user_id: user.id,
+        body,
+      })
+      .select("id")
+      .single();
+    if (error) return { error: error.message };
+
+    const { flagContentIfNeeded } = await import(
+      "@/lib/moderation/behaviorScanner"
+    );
+    await flagContentIfNeeded(supabase, {
+      sourceType: "comment",
+      sourceId: inserted.id,
+      userId: user.id,
       body,
     });
-    if (error) return { error: error.message };
 
     revalidatePath("/journal");
     return { success: true };

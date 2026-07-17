@@ -39,7 +39,7 @@ type QueueItem = {
 };
 
 export type MediaUploadProps = {
-  bucket: "avatars" | "banners" | "garage" | "builds";
+  bucket: "avatars" | "banners" | "garage" | "builds" | "messages";
   /** Path prefix already includes auth user id, e.g. `${userId}/community` */
   pathPrefix: string;
   accept?: "image" | "video" | "both";

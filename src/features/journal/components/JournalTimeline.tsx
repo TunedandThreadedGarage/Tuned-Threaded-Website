@@ -12,6 +12,7 @@ import {
 } from "@/features/journal/actions";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { Avatar } from "@/components/garage-profile/Avatar";
+import { ReportButton } from "@/features/moderation/components/ReportButton";
 
 function isVideo(url: string) {
   return /\.(mp4|webm|mov)(\?|$)/i.test(url) || url.includes("/video");
@@ -108,6 +109,12 @@ function JournalCard({
             <DeleteButton
               label="Delete"
               onDelete={deleteJournalHubEntry.bind(null, entry.id)}
+            />
+          ) : signedIn ? (
+            <ReportButton
+              targetType="journal_entry"
+              targetId={entry.id}
+              targetUserId={entry.user_id}
             />
           ) : null}
         </div>
