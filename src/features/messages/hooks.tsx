@@ -4,29 +4,25 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { ensureRealtimeAuth } from "@/lib/supabase/realtime";
 import { useAuth, type PresenceStatus } from "@/components/auth/AuthProvider";
 
 const PIN_KEY = "tt:dm-pinned";
 
 export function usePinnedConversations() {
-  const [pinned, setPinned] = useState<string[]>([]);
-
-  useEffect(() => {
+  const [pinned, setPinned] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
     try {
       const raw = localStorage.getItem(PIN_KEY);
-      if (raw) setPinned(JSON.parse(raw) as string[]);
+      if (raw) return JSON.parse(raw) as string[];
     } catch {
       /* ignore */
     }
-  }, []);
+    return [];
+  });
 
   const togglePin = useCallback((id: string) => {
     setPinned((prev) => {
@@ -57,8 +53,8 @@ const OnlinePresenceContext = createContext<PresenceCtx>({
 });
 
 /**
- * Messages-scoped presence bridge — prefers global AuthProvider presence
- * so status works across the site, not only on /messages.
+ * Messages-scoped presence bridge — uses global AuthProvider presence only.
+ * Does not track a separate channel that could override away/offline.
  */
 export function OnlinePresenceProvider({
   userId,
@@ -67,69 +63,21 @@ export function OnlinePresenceProvider({
   userId: string;
   children: ReactNode;
 }) {
-  const { getPresence, realtimeEpoch } = useAuth();
-  const [fallbackOnline, setFallbackOnline] = useState<Set<string>>(new Set());
-  const channelRef = useRef<ReturnType<
-    ReturnType<typeof createClient>["channel"]
-  > | null>(null);
-
-  useEffect(() => {
-    if (!userId) return;
-    let alive = true;
-    const supabase = createClient();
-
-    void (async () => {
-      await ensureRealtimeAuth(supabase);
-      if (!alive) return;
-
-      const channel = supabase.channel("presence:messages", {
-        config: { presence: { key: userId } },
-      });
-      channelRef.current = channel;
-
-      const sync = () => {
-        const state = channel.presenceState();
-        setFallbackOnline(new Set(Object.keys(state)));
-      };
-
-      channel
-        .on("presence", { event: "sync" }, sync)
-        .on("presence", { event: "join" }, sync)
-        .on("presence", { event: "leave" }, sync)
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED" && alive) {
-            await channel.track({
-              status: "online",
-              at: new Date().toISOString(),
-            });
-          }
-        });
-    })();
-
-    return () => {
-      alive = false;
-      if (channelRef.current) {
-        void supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, [userId, realtimeEpoch]);
+  const { getPresence } = useAuth();
 
   const value = useMemo<PresenceCtx>(
     () => ({
-      getStatus: (id: string) => {
-        const global = getPresence(id);
-        if (global !== "offline") return global;
-        return fallbackOnline.has(id) ? "online" : "offline";
-      },
+      getStatus: (id: string) => getPresence(id),
       isOnline: (id: string) => {
         const status = getPresence(id);
-        if (status === "online" || status === "away") return true;
-        return fallbackOnline.has(id);
+        return status === "online" || status === "away";
       },
     }),
-    [getPresence, fallbackOnline],
+    [getPresence],
   );
+
+  // Keep prop for API compatibility with MessagesShell.
+  void userId;
 
   return (
     <OnlinePresenceContext.Provider value={value}>

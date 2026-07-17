@@ -44,8 +44,8 @@ export async function signUpWithEmail(
   if (error) return { error: error.message };
 
   try {
-    const { sendWelcomeEmail } = await import("@/lib/email/dispatch");
-    await sendWelcomeEmail(email);
+    const { sendMandatoryEmail } = await import("@/lib/notify");
+    await sendMandatoryEmail({ kind: "welcome", to: email });
   } catch {
     // Welcome email is best-effort; never block signup.
   }
@@ -64,8 +64,12 @@ export async function signUpWithEmail(
         });
         const verifyUrl = linkData?.properties?.action_link;
         if (verifyUrl) {
-          const { sendVerifyEmail } = await import("@/lib/email/dispatch");
-          await sendVerifyEmail(email, verifyUrl);
+          const { sendMandatoryEmail } = await import("@/lib/notify");
+          await sendMandatoryEmail({
+            kind: "verify",
+            to: email,
+            verifyUrl,
+          });
         }
       }
     } catch {
@@ -126,8 +130,12 @@ export async function requestPasswordReset(
       if (error) return { error: error.message };
       const resetUrl = linkData?.properties?.action_link;
       if (resetUrl) {
-        const { sendPasswordResetEmail } = await import("@/lib/email/dispatch");
-        await sendPasswordResetEmail(email, resetUrl);
+        const { sendMandatoryEmail } = await import("@/lib/notify");
+        await sendMandatoryEmail({
+          kind: "password_reset",
+          to: email,
+          resetUrl,
+        });
       }
     } else {
       const supabase = await createClient();

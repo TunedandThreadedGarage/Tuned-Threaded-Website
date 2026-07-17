@@ -12,13 +12,8 @@ create table if not exists private.app_secrets (
   value text not null
 );
 
--- Shared secret for server-side email lookup (override in prod via SQL if needed).
-insert into private.app_secrets (key, value)
-values (
-  'notify_lookup',
-  '26a6ebf52daae0efdb58defdca72f783f88d64c7860b22e51969f64d3e56b099'
-)
-on conflict (key) do nothing;
+-- Deployment must set notify_lookup + notify_worker_url via SQL / dashboard.
+-- Fail closed: no default secret or production URL is committed.
 
 create or replace function private.sync_user_email()
 returns trigger
@@ -84,10 +79,12 @@ end;
 $$;
 
 revoke all on function public.get_notification_email(uuid, text) from public;
-grant execute on function public.get_notification_email(uuid, text) to authenticated;
+revoke all on function public.get_notification_email(uuid, text) from anon;
+revoke all on function public.get_notification_email(uuid, text) from authenticated;
 grant execute on function public.get_notification_email(uuid, text) to service_role;
 
--- Followers email ON by default (was seeded off).
+-- Canonical preference seed (followers email on; trending off).
+-- Uses ON CONFLICT DO NOTHING so existing user opt-outs are never rewritten.
 create or replace function public.seed_notification_channel_preferences(p_user_id uuid)
 returns void
 language plpgsql
@@ -116,9 +113,3 @@ begin
   end loop;
 end;
 $$;
-
--- Enable follower emails for existing users (fix seed default).
-update public.notification_channel_preferences
-set email_enabled = true
-where event_key = 'followers'
-  and email_enabled = false;

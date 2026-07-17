@@ -36,8 +36,61 @@ const AuthContext = createContext<AuthContextValue>({
   getPresence: () => "offline",
 });
 
-const AWAY_MS = 5 * 60 * 1000;
+const AWAY_MS = 10 * 60 * 1000;
+const HEARTBEAT_MS = 60 * 1000;
 const PRESENCE_CHANNEL = "presence:garage";
+const CONNECTION_KEY = "tt:presence-connection-id";
+
+function getTabConnectionId(): string {
+  try {
+    let id = sessionStorage.getItem(CONNECTION_KEY);
+    if (!id) {
+      id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(CONNECTION_KEY, id);
+    }
+    return id;
+  } catch {
+    return `tab-${Date.now()}`;
+  }
+}
+
+/**
+ * Server-side presence heartbeat. Keeps per-tab connections fresh so the
+ * notification service can decide whether to queue emails. Aggregate
+ * "online" also cancels any pending queued emails for this user.
+ */
+function sendPresenceHeartbeat(status: PresenceStatus, connectionId: string) {
+  try {
+    const body = JSON.stringify({ status, connectionId });
+    if (status === "offline" && "sendBeacon" in navigator) {
+      navigator.sendBeacon(
+        "/api/presence",
+        new Blob([body], { type: "application/json" }),
+      );
+      return;
+    }
+    void fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: status === "offline",
+    }).catch(() => {});
+  } catch {
+    // Presence is best-effort; never break the UI over it.
+  }
+}
+
+function bestPeerStatus(metas: { status?: PresenceStatus }[]): PresenceStatus {
+  let best: PresenceStatus = "offline";
+  for (const meta of metas) {
+    if (meta?.status === "online") return "online";
+    if (meta?.status === "away") best = "away";
+  }
+  return best;
+}
 
 export function useAuth() {
   return useContext(AuthContext);
@@ -59,14 +112,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ReturnType<typeof createClient>["channel"]
   > | null>(null);
   const statusRef = useRef<PresenceStatus>("offline");
+  const connectionIdRef = useRef<string>("");
 
   const bumpRealtime = useCallback(() => {
     setRealtimeEpoch((n) => n + 1);
   }, []);
 
   const trackPresence = useCallback(async (status: PresenceStatus) => {
+    const changed = statusRef.current !== status;
     statusRef.current = status;
     setPresenceStatus(status);
+    const connectionId = connectionIdRef.current || getTabConnectionId();
+    connectionIdRef.current = connectionId;
+    if (prevUserId.current && (changed || status !== "offline")) {
+      // Heartbeat on change; offline always sent so this tab disconnects.
+      if (changed || status === "offline") {
+        sendPresenceHeartbeat(status, connectionId);
+      }
+    }
     const channel = channelRef.current;
     if (!channel) return;
     if (status === "offline") {
@@ -76,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await channel.track({
       status,
       at: new Date().toISOString(),
+      connectionId,
     });
   }, []);
 
@@ -118,7 +182,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (prevId !== nextId) {
         prevUserId.current = nextId;
         bumpRealtime();
-        // Soft nav after auth change: refresh RSC chrome.
         if (
           fromEvent === "SIGNED_IN" ||
           fromEvent === "SIGNED_OUT" ||
@@ -175,12 +238,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
-      setPeerPresence(new Map());
       statusRef.current = "offline";
-      setPresenceStatus("offline");
+      // Defer React state resets so we don't cascade-render inside the effect.
+      queueMicrotask(() => {
+        setPeerPresence(new Map());
+        setPresenceStatus("offline");
+      });
       return;
     }
 
+    connectionIdRef.current = getTabConnectionId();
     let alive = true;
     const supabase = createClient();
 
@@ -193,17 +260,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         channelRef.current = null;
       }
 
+      // Key by connection so multiple tabs from the same user do not overwrite.
       const channel = supabase.channel(PRESENCE_CHANNEL, {
-        config: { presence: { key: userId } },
+        config: { presence: { key: `${userId}:${connectionIdRef.current}` } },
       });
       channelRef.current = channel;
 
       const syncPeers = () => {
         const state = channel.presenceState<{ status?: PresenceStatus }>();
         const next = new Map<string, PresenceStatus>();
-        for (const [id, metas] of Object.entries(state)) {
-          const meta = metas[0];
-          next.set(id, meta?.status === "away" ? "away" : "online");
+        for (const [key, metas] of Object.entries(state)) {
+          const userKey = key.includes(":") ? key.split(":")[0] : key;
+          const status = bestPeerStatus(metas);
+          const current = next.get(userKey) ?? "offline";
+          if (status === "online") next.set(userKey, "online");
+          else if (status === "away" && current !== "online") {
+            next.set(userKey, "away");
+          } else if (!next.has(userKey)) {
+            next.set(userKey, status);
+          }
         }
         setPeerPresence(next);
       };
@@ -225,12 +300,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       alive = false;
+      // Mark this tab offline so other tabs keep the aggregate correct.
+      if (connectionIdRef.current) {
+        sendPresenceHeartbeat("offline", connectionIdRef.current);
+      }
       if (channelRef.current) {
         void supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
     };
   }, [user?.id, realtimeEpoch, scheduleAway, trackPresence]);
+
+  // Keep-alive heartbeat so server-side presence never goes stale while
+  // the user is online or away (a stale row reads as "offline").
+  useEffect(() => {
+    if (!user?.id) return;
+    const connectionId = connectionIdRef.current || getTabConnectionId();
+    connectionIdRef.current = connectionId;
+    sendPresenceHeartbeat(
+      statusRef.current === "offline" ? "away" : statusRef.current,
+      connectionId,
+    );
+    const interval = window.setInterval(() => {
+      if (statusRef.current !== "offline") {
+        sendPresenceHeartbeat(statusRef.current, connectionId);
+      }
+    }, HEARTBEAT_MS);
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
 
   // Visibility + activity → online / away / offline
   useEffect(() => {
@@ -248,6 +345,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void trackPresence("offline");
     }
 
+    function onPageShow() {
+      // Recover from BFCache / reopen: restore online if visible.
+      if (document.visibilityState === "visible") {
+        markActive();
+      }
+    }
+
     const activityEvents = [
       "mousemove",
       "mousedown",
@@ -261,6 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
 
     return () => {
       for (const ev of activityEvents) {
@@ -268,6 +373,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
       if (awayTimer.current) window.clearTimeout(awayTimer.current);
     };
   }, [user?.id, markActive, trackPresence]);

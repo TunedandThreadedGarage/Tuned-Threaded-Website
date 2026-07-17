@@ -232,6 +232,66 @@ export type Notification = {
   created_at: string;
 };
 
+export type PresenceStatusDb = "online" | "away" | "offline";
+
+export type UserPresence = {
+  user_id: string;
+  status: PresenceStatusDb;
+  last_seen_at: string;
+  updated_at: string;
+};
+
+export type UserPresenceConnection = {
+  connection_id: string;
+  user_id: string;
+  status: PresenceStatusDb;
+  last_seen_at: string;
+  created_at: string;
+};
+
+export type NotificationEmailQueueStatus =
+  | "pending"
+  | "sending"
+  | "sent"
+  | "cancelled"
+  | "failed";
+
+export type NotificationEmailQueueRow = {
+  id: string;
+  user_id: string;
+  notification_id: string | null;
+  conversation_id: string | null;
+  type: string;
+  event_key: string;
+  payload: {
+    message?: string;
+    href?: string | null;
+    actorName?: string | null;
+  };
+  status: NotificationEmailQueueStatus;
+  cancel_reason: string | null;
+  error: string | null;
+  attempts: number;
+  max_attempts: number;
+  provider_message_id: string | null;
+  idempotency_key: string;
+  send_after: string;
+  claimed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NotificationDeliveryEvent = {
+  id: number;
+  queue_id: string | null;
+  user_id: string | null;
+  notification_type: string | null;
+  event: string;
+  presence_state: string | null;
+  details: Record<string, unknown>;
+  created_at: string;
+};
+
 export type BuildLike = {
   build_id: string;
   user_id: string;
@@ -1056,6 +1116,22 @@ export type Database = {
           id?: string;
         };
         Update: Partial<CommunityNotification>;
+      };
+      user_presence: {
+        Row: UserPresence;
+        Insert: Omit<UserPresence, "last_seen_at" | "updated_at"> & {
+          last_seen_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<UserPresence>;
+      };
+      user_presence_connections: {
+        Row: UserPresenceConnection;
+        Insert: Omit<UserPresenceConnection, "last_seen_at" | "created_at"> & {
+          last_seen_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<UserPresenceConnection>;
       };
     };
   };

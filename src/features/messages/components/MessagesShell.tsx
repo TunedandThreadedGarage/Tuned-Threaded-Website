@@ -1,7 +1,18 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { OnlinePresenceProvider } from "@/features/messages/hooks";
+
+function cancelPendingMessageEmails() {
+  if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+    return;
+  }
+  void fetch("/api/notifications/cancel-messages", {
+    method: "POST",
+    keepalive: true,
+  }).catch(() => {});
+}
 
 export function MessagesShell({
   userId,
@@ -16,6 +27,18 @@ export function MessagesShell({
   const isThread =
     pathname.startsWith("/messages/") &&
     pathname !== "/messages/requests";
+
+  // Opening Messages (inbox or thread) cancels queued DM emails.
+  useEffect(() => {
+    cancelPendingMessageEmails();
+    function onVisible() {
+      if (document.visibilityState === "visible") {
+        cancelPendingMessageEmails();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [pathname]);
 
   return (
     <OnlinePresenceProvider userId={userId}>

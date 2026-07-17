@@ -1,10 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendOrderEmail } from "@/lib/email/dispatch";
-import { getChannelDecision } from "@/lib/email/preferences";
+import { sendMandatoryEmail } from "@/lib/notify";
 
 /**
- * Send branded order/shipping email + optional in-app notification while
- * honoring the recipient's `orders` preference (paymentFailed email is forced).
+ * Send branded order/shipping email + optional in-app notification.
+ * Order confirmation and shipping updates always email (bypass presence
+ * and preferences) per the smart notification delivery policy.
  */
 export async function notifyOrderUpdate(input: {
   userId?: string | null;
@@ -24,19 +24,21 @@ export async function notifyOrderUpdate(input: {
   carrier?: string;
   status?: string;
 }): Promise<void> {
-  const admin = createAdminClient();
-
-  await sendOrderEmail(input.email, input.kind, {
+  await sendMandatoryEmail({
+    kind: "order",
+    to: input.email,
+    orderKind: input.kind,
     orderId: input.orderId,
     label: input.label,
     tracking: input.tracking,
     carrier: input.carrier,
     status: input.status,
     userId: input.userId ?? undefined,
-    supabase: admin ?? undefined,
   });
 
-  if (!input.userId || !admin) return;
+  if (!input.userId) return;
+  const admin = createAdminClient();
+  if (!admin) return;
 
   const type =
     input.kind === "confirmation"
@@ -48,9 +50,6 @@ export async function notifyOrderUpdate(input: {
           : input.kind === "shippingUpdate"
             ? "shipping_update"
             : "order_update";
-
-  const decision = await getChannelDecision(admin, input.userId, type);
-  if (!decision.inApp) return;
 
   const label = input.label ?? `Order ${input.orderId.slice(0, 8)}`;
   const message =
@@ -70,6 +69,7 @@ export async function notifyOrderUpdate(input: {
                   ? `Payment failed for ${label}.`
                   : `Order update for ${label}.`;
 
+  // Email already sent via sendMandatoryEmail; create in-app row only.
   await admin.from("notifications").insert({
     user_id: input.userId,
     actor_id: null,

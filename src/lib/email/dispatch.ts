@@ -82,6 +82,24 @@ function resolveTemplate(input: {
   }
 }
 
+/** Render the branded template for a queued notification email. */
+export function renderNotificationEmail(input: {
+  type: string;
+  message: string;
+  href?: string | null;
+  actorName?: string | null;
+}): { subject: string; html: string } {
+  const href = input.href?.startsWith("http")
+    ? input.href
+    : `${siteUrl()}${input.href || "/notifications"}`;
+  return resolveTemplate({
+    type: input.type,
+    message: input.message,
+    href,
+    actor: input.actorName ?? "Someone",
+  });
+}
+
 /** Map notification types to branded templates and send if prefs allow. */
 export async function dispatchNotificationEmail(
   supabase: AnySupabase,
@@ -197,31 +215,14 @@ export async function sendOrderEmail(
     carrier?: string;
     status?: string;
     userId?: string;
-    /** When provided, honor the orders preference (except paymentFailed). */
+    /** Reserved; order/shipping mail always sends (bypass preferences). */
     supabase?: AnySupabase;
   },
 ): Promise<void> {
-  // Payment failures stay mandatory; other order mail respects prefs when userId given.
-  if (
-    kind !== "paymentFailed" &&
-    meta.userId &&
-    meta.supabase
-  ) {
-    const decision = await getChannelDecision(
-      meta.supabase,
-      meta.userId,
-      kind === "confirmation"
-        ? "order_confirmation"
-        : kind === "shipped"
-          ? "order_shipped"
-          : kind === "delivered"
-            ? "order_delivered"
-            : kind === "shippingUpdate"
-              ? "shipping_update"
-              : "order_update",
-    );
-    if (!decision.email) return;
-  }
+  // Order confirmation, shipping, and payment failures always send
+  // regardless of presence or notification preferences.
+  void meta.userId;
+  void meta.supabase;
 
   const href = `${siteUrl()}/garage/orders`;
   const label = meta.label ?? `Order ${meta.orderId.slice(0, 8)}`;
@@ -250,6 +251,6 @@ export async function sendOrderEmail(
     to,
     subject: tpl.subject,
     html: tpl.html,
-    force: kind === "paymentFailed",
+    force: true,
   });
 }

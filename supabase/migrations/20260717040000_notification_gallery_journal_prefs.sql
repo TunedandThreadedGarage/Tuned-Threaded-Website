@@ -27,7 +27,8 @@ create policy "Garage photo likes delete own"
   on public.garage_photo_likes for delete
   using (auth.uid() = user_id);
 
--- Extend default preference seeds with journal + gallery
+-- Temporary seed; superseded by 20260717050000 with the canonical defaults.
+-- followers email ON; trending OFF. Never rewrites existing opt-outs.
 create or replace function public.seed_notification_channel_preferences(p_user_id uuid)
 returns void
 language plpgsql
@@ -48,7 +49,7 @@ begin
     ) values (
       p_user_id,
       k,
-      case when k in ('followers', 'trending') then false else true end,
+      case when k = 'trending' then false else true end,
       true,
       false
     )
@@ -57,7 +58,7 @@ begin
 end;
 $$;
 
--- Backfill new keys for existing users
+-- Backfill new keys for existing users (insert-only)
 do $$
 declare
   r record;

@@ -6,6 +6,8 @@ export type SendEmailInput = {
   html: string;
   /** Bypass preference checks — use for security / mandatory order email paths that already validated. */
   force?: boolean;
+  /** Resend idempotency key to prevent duplicate sends on retries. */
+  idempotencyKey?: string;
 };
 
 export type SendEmailResult =
@@ -28,32 +30,62 @@ export async function sendEmail(
 ): Promise<SendEmailResult> {
   if (!process.env.RESEND_API_KEY) {
     console.warn(
-      `[email:skipped:no-key] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to}`,
+      JSON.stringify({
+        scope: "email",
+        event: "skipped_no_key",
+        subject: input.subject,
+        to: Array.isArray(input.to) ? input.to.join(",") : input.to,
+      }),
     );
-    return { ok: true, skipped: true };
+    // Not a successful send — callers that need delivery must retry.
+    return { ok: false, error: "missing_RESEND_API_KEY" };
   }
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const { data, error } = await resend.emails.send({
-      from: fromAddress(),
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-    });
+    const { data, error } = await resend.emails.send(
+      {
+        from: fromAddress(),
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+      },
+      input.idempotencyKey
+        ? { idempotencyKey: input.idempotencyKey }
+        : undefined,
+    );
     if (error) {
       console.error(
-        `[email:fail] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to}: ${error.message}`,
+        JSON.stringify({
+          scope: "email",
+          event: "fail",
+          subject: input.subject,
+          to: Array.isArray(input.to) ? input.to.join(",") : input.to,
+          error: error.message,
+        }),
       );
       return { ok: false, error: error.message };
     }
     console.info(
-      `[email:sent] ${input.subject} → ${Array.isArray(input.to) ? input.to.join(",") : input.to} id=${data?.id}`,
+      JSON.stringify({
+        scope: "email",
+        event: "sent",
+        subject: input.subject,
+        to: Array.isArray(input.to) ? input.to.join(",") : input.to,
+        resendId: data?.id ?? null,
+      }),
     );
     return { ok: true, id: data?.id };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Email send failed.";
-    console.error(`[email:exception] ${input.subject}: ${message}`);
+    console.error(
+      JSON.stringify({
+        scope: "email",
+        event: "exception",
+        subject: input.subject,
+        error: message,
+      }),
+    );
     return { ok: false, error: message };
   }
 }

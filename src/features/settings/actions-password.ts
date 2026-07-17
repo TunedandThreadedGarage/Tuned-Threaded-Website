@@ -29,8 +29,12 @@ export async function updateAccountPassword(
 
   try {
     if (user.email) {
-      const { sendSecurityEmail } = await import("@/lib/email/dispatch");
-      await sendSecurityEmail(user.email, "passwordChanged");
+      const { sendMandatoryEmail } = await import("@/lib/notify");
+      await sendMandatoryEmail({
+        kind: "security",
+        to: user.email,
+        securityKind: "passwordChanged",
+      });
     }
   } catch {
     // Security email is best-effort.
