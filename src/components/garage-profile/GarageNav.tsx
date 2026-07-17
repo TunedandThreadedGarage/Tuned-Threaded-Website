@@ -1,18 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
+import {
+  useGarageHubOptional,
+  type GarageTab,
+} from "@/features/garage-hub/GarageHubContext";
 
-const LINKS: { href: string; label: string; exact?: boolean }[] = [
-  { href: "/garage", label: "Profile", exact: true },
-  { href: "/garage/discover", label: "Discover" },
-  { href: "/garage/builds", label: "Builds" },
-  { href: "/garage/gallery", label: "Gallery" },
+const LINKS: { id: GarageTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "vehicles", label: "Vehicles" },
+  { id: "builds", label: "Builds" },
+  { id: "gallery", label: "Gallery" },
+  { id: "journal", label: "Journal" },
 ];
 
 export function GarageNav() {
-  const pathname = usePathname();
+  const hub = useGarageHubOptional();
+  if (!hub) return null;
+
+  const { tab, setTab } = hub;
 
   return (
     <nav
@@ -20,15 +26,12 @@ export function GarageNav() {
       className="flex gap-1 overflow-x-auto border-b border-border pb-px"
     >
       {LINKS.map((link) => {
-        const active = link.exact
-          ? pathname === link.href
-          : pathname.startsWith(link.href);
+        const active = tab === link.id;
         return (
-          <Link
-            key={link.href}
-            href={link.href}
-            prefetch
-            scroll={false}
+          <button
+            key={link.id}
+            type="button"
+            onClick={() => setTab(link.id)}
             className={`relative shrink-0 px-3 py-3 text-sm transition-colors ${
               active ? "text-text" : "text-text-muted hover:text-text"
             }`}
@@ -41,7 +44,7 @@ export function GarageNav() {
                 transition={{ type: "spring", stiffness: 420, damping: 36 }}
               />
             ) : null}
-          </Link>
+          </button>
         );
       })}
     </nav>
@@ -52,12 +55,12 @@ export function GarageNav() {
 export function isGarageShowcasePath(pathname: string) {
   if (pathname === "/garage") return true;
   return (
-    pathname.startsWith("/garage/discover") ||
+    pathname.startsWith("/garage/vehicles") ||
     pathname.startsWith("/garage/builds") ||
     pathname.startsWith("/garage/gallery") ||
-    pathname.startsWith("/garage/vehicles") ||
+    pathname.startsWith("/garage/journal") ||
+    pathname.startsWith("/garage/discover") ||
     pathname.startsWith("/garage/followers") ||
-    pathname.startsWith("/garage/following") ||
-    pathname.startsWith("/garage/merch")
+    pathname.startsWith("/garage/following")
   );
 }

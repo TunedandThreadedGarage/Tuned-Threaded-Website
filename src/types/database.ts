@@ -53,6 +53,9 @@ export type Vehicle = {
   nickname: string | null;
   engine: string | null;
   transmission: string | null;
+  drivetrain: string | null;
+  vin: string | null;
+  paint_color: string | null;
   mileage: number | null;
   current_hp: number | null;
   target_hp: number | null;
@@ -423,6 +426,7 @@ export type VehiclePhoto = {
   url: string;
   caption: string | null;
   sort_order: number;
+  is_cover: boolean;
   created_at: string;
 };
 

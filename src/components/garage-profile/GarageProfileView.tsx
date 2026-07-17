@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/Button";
 import { FadeIn } from "@/components/ui/FadeIn";
 import { formatMoneyFromCents } from "@/lib/garage-stats";
 import type { GarageProfileBundle } from "@/lib/garage-profile-data";
+import {
+  OpenVehicleEditorButton,
+  OpenVehicleEditorLink,
+} from "@/features/garage-hub/components/OpenVehicleEditorButton";
 
 export function GarageProfileView({
   data,
@@ -93,12 +97,10 @@ export function GarageProfileView({
             Vehicles
           </h2>
           {isOwner ? (
-            <Link
-              href="/garage/settings#vehicles"
+            <OpenVehicleEditorLink
+              label="Manage"
               className="text-sm text-text-muted hover:text-text"
-            >
-              Manage
-            </Link>
+            />
           ) : null}
         </div>
         {vehicles.length > 0 ? (
@@ -117,9 +119,10 @@ export function GarageProfileView({
             description="Add the cars and trucks that live in your garage."
             action={
               isOwner ? (
-                <Button href="/garage/settings#vehicles" variant="secondary">
-                  Add a vehicle
-                </Button>
+                <OpenVehicleEditorButton
+                  label="Add a vehicle"
+                  variant="secondary"
+                />
               ) : undefined
             }
           />

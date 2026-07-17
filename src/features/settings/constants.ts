@@ -45,7 +45,7 @@ export const SETTINGS_SECTIONS = [
     key: "garage",
     href: "/garage/settings/garage",
     label: "Garage",
-    description: "Vehicles, modifications, and garage details.",
+    description: "Shortcut to the Vehicles hub in The Garage.",
   },
   {
     key: "store",

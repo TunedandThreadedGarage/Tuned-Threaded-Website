@@ -8,7 +8,7 @@ import {
 } from "@/lib/garage-badges";
 import type { ModStatus } from "@/types/database";
 
-export type ActionResult = { error?: string; success?: boolean };
+export type ActionResult = { error?: string; success?: boolean; id?: string };
 
 async function requireUser() {
   const supabase = await createClient();
@@ -27,7 +27,9 @@ function numOrNull(raw: string): number | null {
 
 function revalidateVehicle(username: string | null | undefined, vehicleId: string) {
   revalidatePath("/garage");
+  revalidatePath("/garage/vehicles");
   revalidatePath("/garage/settings");
+  revalidatePath("/garage/settings/garage");
   if (username) {
     revalidatePath(`/garage/${username}`);
     revalidatePath(`/garage/${username}/vehicles/${vehicleId}`);
@@ -56,6 +58,9 @@ export async function upsertVehicle(
       nickname: String(formData.get("nickname") ?? "").trim() || null,
       engine: String(formData.get("engine") ?? "").trim() || null,
       transmission: String(formData.get("transmission") ?? "").trim() || null,
+      drivetrain: String(formData.get("drivetrain") ?? "").trim() || null,
+      vin: String(formData.get("vin") ?? "").trim() || null,
+      paint_color: String(formData.get("paint_color") ?? "").trim() || null,
       mileage: numOrNull(String(formData.get("mileage") ?? "")),
       current_hp: numOrNull(String(formData.get("current_hp") ?? "")),
       target_hp: numOrNull(String(formData.get("target_hp") ?? "")),
@@ -99,7 +104,7 @@ export async function upsertVehicle(
     await evaluateAndAwardBadges(supabase, user.id);
     await refreshReputationCache(supabase, user.id);
     revalidateVehicle(profile?.username, vehicleId);
-    return { success: true };
+    return { success: true, id: vehicleId };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };
   }
@@ -115,6 +120,7 @@ export async function deleteVehicle(vehicleId: string): Promise<ActionResult> {
       .eq("user_id", user.id);
     if (error) return { error: error.message };
     revalidatePath("/garage");
+    revalidatePath("/garage/vehicles");
     revalidatePath("/garage/settings");
     return { success: true };
   } catch (e) {
@@ -406,6 +412,20 @@ export async function updateVehiclePhotoUrl(
       .eq("id", vehicleId)
       .eq("user_id", user.id);
     if (error) return { error: error.message };
+
+    // Mark matching gallery photo as cover when present.
+    await supabase
+      .from("vehicle_photos")
+      .update({ is_cover: false })
+      .eq("vehicle_id", vehicleId)
+      .eq("user_id", user.id);
+    await supabase
+      .from("vehicle_photos")
+      .update({ is_cover: true })
+      .eq("vehicle_id", vehicleId)
+      .eq("user_id", user.id)
+      .eq("url", photoUrl);
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("username")
@@ -416,4 +436,51 @@ export async function updateVehiclePhotoUrl(
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };
   }
+}
+
+export async function deleteVehiclePhoto(photoId: string): Promise<ActionResult> {
+  try {
+    const { supabase, user } = await requireUser();
+    const { data: photo } = await supabase
+      .from("vehicle_photos")
+      .select("id, vehicle_id, url, is_cover")
+      .eq("id", photoId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!photo) return { error: "Photo not found." };
+
+    const { error } = await supabase
+      .from("vehicle_photos")
+      .delete()
+      .eq("id", photoId)
+      .eq("user_id", user.id);
+    if (error) return { error: error.message };
+
+    if (photo.is_cover) {
+      await supabase
+        .from("vehicles")
+        .update({ photo_url: null })
+        .eq("id", photo.vehicle_id)
+        .eq("user_id", user.id)
+        .eq("photo_url", photo.url);
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle();
+    revalidateVehicle(profile?.username, photo.vehicle_id);
+    return { success: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed." };
+  }
+}
+
+export async function setVehicleCoverPhoto(input: {
+  vehicleId: string;
+  photoUrl: string;
+  photoId?: string;
+}): Promise<ActionResult> {
+  return updateVehiclePhotoUrl(input.vehicleId, input.photoUrl);
 }

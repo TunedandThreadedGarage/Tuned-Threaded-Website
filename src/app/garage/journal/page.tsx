@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Journal is a top-level hub at /journal. */
-export default function GarageJournalRedirectPage() {
-  redirect("/journal");
+/** Journal section restored inside the Garage hub. */
+export default function GarageJournalHubRedirectPage() {
+  redirect("/garage?tab=journal");
 }
