@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { loadThread } from "@/features/messages/actions";
+import { loadInbox, loadThread } from "@/features/messages/actions";
+import { MessagesInbox } from "@/features/messages/components/MessagesInbox";
+import { MessagesShell } from "@/features/messages/components/MessagesShell";
 import { MessageThread } from "@/features/messages/components/MessageThread";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
@@ -18,7 +20,7 @@ export default async function MessageThreadPage({
   } = await supabase.auth.getUser();
   if (!user) redirect(`/garage/sign-in?next=/messages/${id}`);
 
-  const thread = await loadThread(id);
+  const [thread, inbox] = await Promise.all([loadThread(id), loadInbox()]);
   if (thread.error || !thread.peer) {
     redirect("/messages");
   }
@@ -26,7 +28,17 @@ export default async function MessageThreadPage({
   return (
     <>
       <SiteHeader />
-      <div className="mx-auto w-full max-w-[800px] px-5 pb-20 pt-24 md:px-8">
+      <MessagesShell
+        userId={user.id}
+        sidebar={
+          <MessagesInbox
+            initialItems={inbox.items}
+            mode="inbox"
+            activeId={id}
+            userId={user.id}
+          />
+        }
+      >
         <MessageThread
           conversationId={id}
           userId={user.id}
@@ -35,7 +47,7 @@ export default async function MessageThreadPage({
           initialPeerLastReadAt={thread.peerLastReadAt}
           initialStatus={thread.status}
         />
-      </div>
+      </MessagesShell>
     </>
   );
 }

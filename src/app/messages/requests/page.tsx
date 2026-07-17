@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { loadMessageRequests } from "@/features/messages/actions";
 import { MessagesInbox } from "@/features/messages/components/MessagesInbox";
+import { MessagesShell } from "@/features/messages/components/MessagesShell";
+import { MessagesEmptyPane } from "@/features/messages/components/MessageThread";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
 export const dynamic = "force-dynamic";
@@ -18,13 +20,24 @@ export default async function MessageRequestsPage() {
   return (
     <>
       <SiteHeader />
-      <div className="mx-auto w-full max-w-[800px] px-5 pb-20 pt-24 md:px-8">
-        {error ? (
-          <p className="text-sm text-accent">{error}</p>
-        ) : (
-          <MessagesInbox initialItems={items} mode="requests" />
-        )}
-      </div>
+      {error ? (
+        <div className="mx-auto max-w-lg px-5 pt-28 text-sm text-accent">
+          {error}
+        </div>
+      ) : (
+        <MessagesShell
+          userId={user.id}
+          sidebar={
+            <MessagesInbox
+              initialItems={items}
+              mode="requests"
+              userId={user.id}
+            />
+          }
+        >
+          <MessagesEmptyPane />
+        </MessagesShell>
+      )}
     </>
   );
 }

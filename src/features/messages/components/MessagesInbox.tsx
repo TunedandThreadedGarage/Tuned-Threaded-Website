@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "@/components/garage-profile/Avatar";
 import type { ConversationListItem } from "@/features/messages/actions";
 import {
@@ -11,183 +12,286 @@ import {
   deleteConversation,
   blockUser,
 } from "@/features/messages/actions";
-
-function formatTime(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
+import {
+  formatMessageTime,
+  useOnlinePresence,
+  usePinnedConversations,
+} from "@/features/messages/hooks";
 
 export function MessagesInbox({
   initialItems,
   mode = "inbox",
+  activeId,
 }: {
   initialItems: ConversationListItem[];
   mode?: "inbox" | "requests";
+  activeId?: string | null;
+  userId?: string;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [items, setItems] = useState(initialItems);
   const [pending, start] = useTransition();
+  const { isPinned, togglePin, pinned } = usePinnedConversations();
+  const { isOnline } = useOnlinePresence();
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter(
-      (i) =>
-        i.peer.username?.toLowerCase().includes(query) ||
-        i.peer.displayName?.toLowerCase().includes(query) ||
-        i.lastMessagePreview?.toLowerCase().includes(query),
-    );
-  }, [items, q]);
+    let list = items;
+    if (query) {
+      list = list.filter(
+        (i) =>
+          i.peer.username?.toLowerCase().includes(query) ||
+          i.peer.displayName?.toLowerCase().includes(query) ||
+          i.lastMessagePreview?.toLowerCase().includes(query),
+      );
+    }
+    return [...list].sort((a, b) => {
+      const ap = isPinned(a.id) ? 1 : 0;
+      const bp = isPinned(b.id) ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bt - at;
+    });
+  }, [items, q, isPinned, pinned]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-metal">
-            Messages
-          </p>
-          <h1 className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-text">
-            {mode === "requests" ? "Message requests" : "Inbox"}
-          </h1>
+    <div className="flex h-full flex-col bg-[#0a0a0c]">
+      <div className="border-b border-border px-4 pb-3 pt-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-metal">
+              Messages
+            </p>
+            <h1 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight text-text">
+              {mode === "requests" ? "Requests" : "Inbox"}
+            </h1>
+          </div>
+          <div className="flex gap-1 rounded-full border border-border p-0.5 text-xs">
+            <Link
+              href="/messages"
+              className={`rounded-full px-3 py-1.5 transition-colors ${
+                mode === "inbox"
+                  ? "bg-white text-bg"
+                  : "text-text-muted hover:text-text"
+              }`}
+            >
+              Inbox
+            </Link>
+            <Link
+              href="/messages/requests"
+              className={`rounded-full px-3 py-1.5 transition-colors ${
+                mode === "requests"
+                  ? "bg-white text-bg"
+                  : "text-text-muted hover:text-text"
+              }`}
+            >
+              Requests
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-3 text-sm">
-          <Link
-            href="/messages"
-            className={
-              mode === "inbox" ? "text-text" : "text-text-muted hover:text-text"
-            }
-          >
-            Inbox
-          </Link>
-          <Link
-            href="/messages/requests"
-            className={
-              mode === "requests"
-                ? "text-text"
-                : "text-text-muted hover:text-text"
-            }
-          >
-            Requests
-          </Link>
-        </div>
+        <label className="relative block">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+            <SearchIcon />
+          </span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search conversations…"
+            className="w-full rounded-xl border border-border bg-surface/60 py-2.5 pl-10 pr-3 text-sm text-text outline-none transition-colors placeholder:text-text-muted/70 focus:border-metal/50"
+          />
+        </label>
       </div>
 
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search conversations…"
-        className="w-full border border-border bg-surface px-3 py-2.5 text-sm text-text placeholder:text-text-muted"
-      />
-
-      {filtered.length === 0 ? (
-        <p className="border border-dashed border-border px-5 py-12 text-center text-sm text-text-muted">
-          {mode === "requests"
-            ? "No message requests."
-            : "No conversations yet."}
-        </p>
-      ) : (
-        <ul className="divide-y divide-border border border-border">
-          {filtered.map((item) => (
-            <li key={item.id} className="flex items-stretch gap-0">
-              <Link
-                href={`/messages/${item.id}`}
-                className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03]"
-              >
-                <Avatar
-                  url={item.peer.avatarUrl}
-                  name={item.peer.displayName ?? item.peer.username}
-                  size="sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-text">
-                      {item.peer.displayName ?? item.peer.username ?? "Member"}
-                      {item.unread ? (
-                        <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" />
-                      ) : null}
-                    </p>
-                    <span className="shrink-0 text-[11px] text-text-muted">
-                      {formatTime(item.lastMessageAt)}
-                    </span>
-                  </div>
-                  <p className="truncate text-xs text-text-muted">
-                    @{item.peer.username}
-                    {item.lastMessagePreview
-                      ? ` · ${item.lastMessagePreview}`
-                      : ""}
-                  </p>
-                </div>
-              </Link>
-              <div className="flex shrink-0 flex-col justify-center gap-1 border-l border-border px-2 py-2">
-                {mode === "requests" ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      className="px-2 py-1 text-[11px] text-text hover:underline"
-                      onClick={() =>
-                        start(async () => {
-                          await acceptMessageRequest(item.id);
-                          setItems((prev) => prev.filter((x) => x.id !== item.id));
-                          router.refresh();
-                        })
-                      }
-                    >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      className="px-2 py-1 text-[11px] text-text-muted hover:text-accent"
-                      onClick={() =>
-                        start(async () => {
-                          await declineMessageRequest(item.id);
-                          setItems((prev) => prev.filter((x) => x.id !== item.id));
-                        })
-                      }
-                    >
-                      Decline
-                    </button>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      className="px-2 py-1 text-[11px] text-text-muted hover:text-accent"
-                      onClick={() =>
-                        start(async () => {
-                          await blockUser(item.peer.id);
-                          setItems((prev) => prev.filter((x) => x.id !== item.id));
-                        })
-                      }
-                    >
-                      Block
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    className="px-2 py-1 text-[11px] text-text-muted hover:text-accent"
-                    onClick={() =>
-                      start(async () => {
-                        if (!window.confirm("Delete this conversation?")) return;
-                        await deleteConversation(item.id);
-                        setItems((prev) => prev.filter((x) => x.id !== item.id));
-                      })
-                    }
+      <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <p className="px-5 py-16 text-center text-sm text-text-muted">
+            {q
+              ? "No matches."
+              : mode === "requests"
+                ? "No message requests."
+                : "No conversations yet."}
+          </p>
+        ) : (
+          <ul className="px-2 py-2">
+            <AnimatePresence initial={false}>
+              {filtered.map((item) => {
+                const active = activeId === item.id;
+                const online = isOnline(item.peer.id);
+                const pinnedItem = isPinned(item.id);
+                return (
+                  <motion.li
+                    key={item.id}
+                    layout
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="group relative"
                   >
-                    Delete
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+                    <Link
+                      href={`/messages/${item.id}`}
+                      className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-colors ${
+                        active
+                          ? "bg-white/[0.08]"
+                          : "hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        <Avatar
+                          url={item.peer.avatarUrl}
+                          name={item.peer.displayName ?? item.peer.username}
+                          size="sm"
+                        />
+                        <span
+                          className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0c] ${
+                            online ? "bg-emerald-400" : "bg-zinc-600"
+                          }`}
+                          title={online ? "Online" : "Offline"}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium text-text">
+                            {pinnedItem ? (
+                              <span className="shrink-0 text-[10px] text-metal" title="Pinned">
+                                ★
+                              </span>
+                            ) : null}
+                            <span className="truncate">
+                              {item.peer.displayName ??
+                                item.peer.username ??
+                                "Member"}
+                            </span>
+                          </p>
+                          <span className="shrink-0 text-[10px] text-text-muted">
+                            {formatMessageTime(item.lastMessageAt)}
+                          </span>
+                        </div>
+                        <p className="truncate text-[11px] text-text-muted">
+                          @{item.peer.username}
+                        </p>
+                        <p
+                          className={`mt-0.5 truncate text-xs ${
+                            item.unread
+                              ? "font-medium text-text"
+                              : "text-text-muted"
+                          }`}
+                        >
+                          {item.lastMessagePreview || "No messages yet"}
+                        </p>
+                      </div>
+                      {item.unread ? (
+                        <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 text-[10px] font-semibold text-white">
+                          •
+                        </span>
+                      ) : null}
+                    </Link>
+
+                    {mode === "inbox" ? (
+                      <button
+                        type="button"
+                        title={pinnedItem ? "Unpin" : "Pin"}
+                        className="absolute right-2 top-2 rounded-md px-1.5 py-0.5 text-[10px] text-text-muted opacity-0 transition-opacity hover:text-text group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          togglePin(item.id);
+                        }}
+                      >
+                        {pinnedItem ? "Unpin" : "Pin"}
+                      </button>
+                    ) : (
+                      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 flex-col gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          className="rounded bg-white px-2 py-0.5 text-[10px] font-medium text-bg"
+                          onClick={() =>
+                            start(async () => {
+                              await acceptMessageRequest(item.id);
+                              setItems((prev) =>
+                                prev.filter((x) => x.id !== item.id),
+                              );
+                              router.push(`/messages/${item.id}`);
+                            })
+                          }
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          className="rounded border border-border px-2 py-0.5 text-[10px] text-text-muted"
+                          onClick={() =>
+                            start(async () => {
+                              await declineMessageRequest(item.id);
+                              setItems((prev) =>
+                                prev.filter((x) => x.id !== item.id),
+                              );
+                            })
+                          }
+                        >
+                          Decline
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          className="rounded border border-border px-2 py-0.5 text-[10px] text-accent"
+                          onClick={() =>
+                            start(async () => {
+                              await blockUser(item.peer.id);
+                              setItems((prev) =>
+                                prev.filter((x) => x.id !== item.id),
+                              );
+                            })
+                          }
+                        >
+                          Block
+                        </button>
+                      </div>
+                    )}
+
+                    {mode === "inbox" ? (
+                      <button
+                        type="button"
+                        className="sr-only"
+                        onClick={() =>
+                          start(async () => {
+                            if (!window.confirm("Delete this conversation?"))
+                              return;
+                            await deleteConversation(item.id);
+                            setItems((prev) =>
+                              prev.filter((x) => x.id !== item.id),
+                            );
+                          })
+                        }
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
+          </ul>
+        )}
+      </div>
     </div>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M16.5 16.5L20 20"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

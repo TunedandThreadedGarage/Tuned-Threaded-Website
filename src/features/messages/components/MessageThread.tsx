@@ -3,10 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/garage-profile/Avatar";
-import { MediaUpload } from "@/components/media/MediaUpload";
-import { Button } from "@/components/ui/Button";
 import {
   blockUser,
   deleteConversation,
@@ -17,10 +16,16 @@ import {
   type ThreadMessage,
 } from "@/features/messages/actions";
 import { ReportButton } from "@/features/moderation/components/ReportButton";
+import {
+  formatMessageTime,
+  useOnlinePresence,
+} from "@/features/messages/hooks";
+import { DmImageAttach } from "@/features/messages/components/DmImageAttach";
 
 const EMOJIS = [
   "😀", "😂", "🔥", "❤️", "👍", "👎", "😮", "😢",
   "🙌", "💪", "🏎️", "🛠️", "🎉", "✅", "👀", "💯",
+  "😎", "🤝", "⚡", "🏁", "🔧", "🖤", "🙌", "🫡",
 ];
 
 export function MessageThread({
@@ -44,14 +49,21 @@ export function MessageThread({
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [gifHint, setGifHint] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const typingTimer = useRef<number | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const channelRef = useRef<ReturnType<
     ReturnType<typeof createClient>["channel"]
   > | null>(null);
+  const { isOnline } = useOnlinePresence();
+  const peerOnline = peer ? isOnline(peer.id) : false;
 
   useEffect(() => {
     void markConversationRead(conversationId);
@@ -60,6 +72,14 @@ export function MessageThread({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, peerTyping]);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setShowMenu(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -133,96 +153,205 @@ export function MessageThread({
     typingTimer.current = window.setTimeout(() => broadcastTyping(), 200);
   }
 
+  async function doSend() {
+    if (pending) return;
+    if (!body.trim() && !imageUrl) return;
+    start(async () => {
+      const res = await sendMessage({
+        conversationId,
+        body,
+        imageUrl,
+      });
+      if (res.error) setError(res.error);
+      else {
+        setBody("");
+        setImageUrl(null);
+        setError(null);
+        setShowEmoji(false);
+        const thread = await loadThread(conversationId);
+        setMessages(thread.messages);
+      }
+    });
+  }
+
   const peerReadMs = peerLastReadAt
     ? new Date(peerLastReadAt).getTime()
     : 0;
 
   return (
-    <div className="flex h-[min(70vh,720px)] flex-col border border-border bg-surface/20">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <div className="relative flex h-full flex-col bg-[#0c0c0e]">
+      {/* Header */}
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-[#0a0a0c]/90 px-3 py-3 backdrop-blur-md md:px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/messages"
-            className="text-sm text-text-muted hover:text-text"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-text-muted transition-colors hover:bg-white/5 hover:text-text md:hidden"
+            aria-label="Back to inbox"
           >
             ←
           </Link>
           {peer ? (
             <>
-              <Avatar
-                url={peer.avatarUrl}
-                name={peer.displayName ?? peer.username}
-                size="sm"
-              />
+              <div className="relative shrink-0">
+                <Avatar
+                  url={peer.avatarUrl}
+                  name={peer.displayName ?? peer.username}
+                  size="sm"
+                />
+                <span
+                  className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0c] ${
+                    peerOnline ? "bg-emerald-400" : "bg-zinc-600"
+                  }`}
+                />
+              </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-text">
                   {peer.displayName ?? peer.username}
                 </p>
                 <p className="truncate text-xs text-text-muted">
                   @{peer.username}
-                  {initialStatus === "request" ? " · Request" : ""}
+                  <span className="mx-1.5 text-border">·</span>
+                  <span className={peerOnline ? "text-emerald-400/90" : ""}>
+                    {peerOnline ? "Online" : "Offline"}
+                  </span>
+                  {initialStatus === "request" ? (
+                    <span className="ml-1.5 text-metal">Request</span>
+                  ) : null}
                 </p>
               </div>
             </>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {peer ? (
-            <>
-              <ReportButton
-                targetType="dm_conversation"
-                targetId={conversationId}
-                targetUserId={peer.id}
-                label="Report"
-              />
-              <button
-                type="button"
-                className="text-xs text-text-muted hover:text-accent"
-                onClick={() =>
-                  start(async () => {
-                    if (!window.confirm("Block this user?")) return;
-                    await blockUser(peer.id);
-                    window.location.href = "/messages";
-                  })
-                }
-              >
-                Block
-              </button>
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="text-xs text-text-muted hover:text-accent"
-            onClick={() =>
-              start(async () => {
-                if (!window.confirm("Delete conversation?")) return;
-                await deleteConversation(conversationId);
-                window.location.href = "/messages";
-              })
-            }
-          >
-            Delete
-          </button>
-        </div>
-      </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.map((m) => {
+        <div className="flex shrink-0 items-center gap-2">
+          {peer?.username ? (
+            <Link
+              href={`/garage/${peer.username}`}
+              className="hidden rounded-full border border-border px-3 py-1.5 text-xs text-text-muted transition-colors hover:border-metal/40 hover:text-text sm:inline-flex"
+            >
+              View Profile
+            </Link>
+          ) : null}
+
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              aria-label="Conversation menu"
+              aria-expanded={showMenu}
+              className="grid h-9 w-9 place-items-center rounded-full text-text-muted transition-colors hover:bg-white/5 hover:text-text"
+              onClick={() => setShowMenu((v) => !v)}
+            >
+              <MoreIcon />
+            </button>
+            <AnimatePresence>
+              {showMenu ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full z-30 mt-1 w-44 overflow-hidden rounded-xl border border-border bg-[#121214] py-1 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]"
+                >
+                  {peer?.username ? (
+                    <Link
+                      href={`/garage/${peer.username}`}
+                      className="block px-4 py-2.5 text-sm text-text hover:bg-white/5 sm:hidden"
+                      onClick={() => setShowMenu(false)}
+                    >
+                      View Profile
+                    </Link>
+                  ) : null}
+                  {peer ? (
+                    <div className="px-4 py-2.5">
+                      <ReportButton
+                        targetType="dm_conversation"
+                        targetId={conversationId}
+                        targetUserId={peer.id}
+                        label="Report"
+                        className="text-sm text-text-muted hover:text-accent"
+                      />
+                    </div>
+                  ) : null}
+                  {peer ? (
+                    <button
+                      type="button"
+                      className="block w-full px-4 py-2.5 text-left text-sm text-text-muted hover:bg-white/5 hover:text-accent"
+                      onClick={() =>
+                        start(async () => {
+                          if (!window.confirm("Block this user?")) return;
+                          await blockUser(peer.id);
+                          window.location.href = "/messages";
+                        })
+                      }
+                    >
+                      Block
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="block w-full px-4 py-2.5 text-left text-sm text-text-muted hover:bg-white/5 hover:text-accent"
+                    onClick={() =>
+                      start(async () => {
+                        if (!window.confirm("Delete conversation?")) return;
+                        await deleteConversation(conversationId);
+                        window.location.href = "/messages";
+                      })
+                    }
+                  >
+                    Delete conversation
+                  </button>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <div
+        ref={scrollerRef}
+        className="flex-1 space-y-1 overflow-y-auto px-3 py-4 md:px-5"
+      >
+        {messages.map((m, idx) => {
           const mine = m.sender_id === userId;
           const seen =
-            mine && peerReadMs > 0 && new Date(m.created_at).getTime() <= peerReadMs;
+            mine &&
+            peerReadMs > 0 &&
+            new Date(m.created_at).getTime() <= peerReadMs;
+          const prev = messages[idx - 1];
+          const showAvatar =
+            !mine && (!prev || prev.sender_id !== m.sender_id);
+
           return (
-            <div
+            <motion.div
               key={m.id}
-              className={`flex ${mine ? "justify-end" : "justify-start"}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`flex gap-2 ${mine ? "justify-end" : "justify-start"}`}
             >
+              {!mine ? (
+                <div className="w-8 shrink-0 self-end">
+                  {showAvatar && peer ? (
+                    <Avatar
+                      url={peer.avatarUrl}
+                      name={peer.displayName ?? peer.username}
+                      size="sm"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
               <div
-                className={`max-w-[80%] space-y-1 ${
-                  mine ? "items-end text-right" : "items-start text-left"
+                className={`flex max-w-[min(78%,28rem)] flex-col ${
+                  mine ? "items-end" : "items-start"
                 }`}
               >
                 {m.image_url ? (
-                  <div className="relative aspect-square w-48 overflow-hidden border border-border">
+                  <button
+                    type="button"
+                    className="relative mb-1 aspect-square w-48 overflow-hidden rounded-2xl border border-border bg-surface transition-transform hover:scale-[1.01]"
+                    onClick={() => setLightbox(m.image_url)}
+                  >
                     <Image
                       src={m.image_url}
                       alt=""
@@ -230,164 +359,253 @@ export function MessageThread({
                       className="object-cover"
                       sizes="192px"
                     />
-                  </div>
+                  </button>
                 ) : null}
                 {m.body.trim() ? (
                   <div
-                    className={`inline-block px-3 py-2 text-sm ${
+                    className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                       mine
-                        ? "bg-white text-bg"
-                        : "border border-border bg-surface text-text"
+                        ? "rounded-br-md bg-white text-bg"
+                        : "rounded-bl-md border border-border/80 bg-surface text-text"
                     }`}
                   >
                     {m.body}
                   </div>
                 ) : null}
-                <p className="text-[10px] text-text-muted">
-                  {new Date(m.created_at).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                  {mine && seen ? " · Seen" : ""}
+                <div className="mt-1 flex items-center gap-2 px-1">
+                  <span className="text-[10px] text-text-muted">
+                    {formatMessageTime(m.created_at)}
+                  </span>
                   {mine ? (
-                    <span className="ml-2">
-                      <ReportButton
-                        targetType="dm_message"
-                        targetId={m.id}
-                        targetUserId={m.sender_id}
-                        label="Report"
-                        className="text-[10px]"
-                      />
+                    <span className="text-[10px] text-text-muted">
+                      {seen ? "Seen" : "Sent"}
                     </span>
                   ) : (
-                    <span className="ml-2">
-                      <ReportButton
-                        targetType="dm_message"
-                        targetId={m.id}
-                        targetUserId={m.sender_id}
-                        label="Report"
-                        className="text-[10px]"
-                      />
-                    </span>
+                    <ReportButton
+                      targetType="dm_message"
+                      targetId={m.id}
+                      targetUserId={m.sender_id}
+                      label="Report"
+                      className="text-[10px] text-text-muted/60 hover:text-accent"
+                    />
                   )}
-                </p>
+                </div>
               </div>
-            </div>
+            </motion.div>
           );
         })}
-        {peerTyping ? (
-          <p className="text-xs text-text-muted">Typing…</p>
-        ) : null}
+
+        <AnimatePresence>
+          {peerTyping ? (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2 pl-10"
+            >
+              <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-border bg-surface px-3 py-2.5">
+                <span className="typing-dot" />
+                <span className="typing-dot [animation-delay:0.15s]" />
+                <span className="typing-dot [animation-delay:0.3s]" />
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border p-3">
-        {error ? <p className="mb-2 text-xs text-accent">{error}</p> : null}
+      {/* Composer */}
+      <div className="shrink-0 border-t border-border bg-[#0a0a0c]/95 px-3 py-3 backdrop-blur-md md:px-4">
+        {error ? (
+          <p className="mb-2 text-xs text-accent">{error}</p>
+        ) : null}
         {imageUrl ? (
-          <div className="relative mb-2 h-16 w-16 overflow-hidden border border-border">
-            <Image src={imageUrl} alt="" fill className="object-cover" sizes="64px" />
+          <div className="relative mb-2 inline-block h-16 w-16 overflow-hidden rounded-xl border border-border">
+            <Image
+              src={imageUrl}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="64px"
+            />
             <button
               type="button"
-              className="absolute right-0 top-0 bg-black/70 px-1 text-[10px] text-white"
+              className="absolute right-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-[10px] text-white"
               onClick={() => setImageUrl(null)}
             >
               ✕
             </button>
           </div>
         ) : null}
+
         <div className="flex items-end gap-2">
-          <div className="relative flex-1">
+          <div className="flex shrink-0 items-center gap-0.5 pb-1">
+            <DmImageAttach
+              userId={userId}
+              conversationId={conversationId}
+              onUploaded={(url) => setImageUrl(url)}
+            />
+            <button
+              type="button"
+              aria-label="Emoji"
+              className="grid h-9 w-9 place-items-center rounded-full text-text-muted transition-colors hover:bg-white/5 hover:text-text"
+              onClick={() => setShowEmoji((v) => !v)}
+            >
+              ☺
+            </button>
+            <button
+              type="button"
+              aria-label="GIF (coming soon)"
+              className="grid h-9 w-9 place-items-center rounded-full text-[10px] font-semibold tracking-wide text-text-muted transition-colors hover:bg-white/5 hover:text-text"
+              onClick={() => {
+                setGifHint(true);
+                window.setTimeout(() => setGifHint(false), 1800);
+              }}
+            >
+              GIF
+            </button>
+          </div>
+
+          <div className="relative min-w-0 flex-1">
+            <AnimatePresence>
+              {showEmoji ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="absolute bottom-full left-0 mb-2 grid max-h-40 w-full max-w-xs grid-cols-8 gap-0.5 overflow-y-auto rounded-xl border border-border bg-[#121214] p-2 shadow-xl"
+                >
+                  {EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      className="grid h-8 w-8 place-items-center rounded-lg text-base hover:bg-white/5"
+                      onClick={() => {
+                        setBody((b) => b + e);
+                        setShowEmoji(false);
+                      }}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
             <textarea
               value={body}
               onChange={(e) => onBodyChange(e.target.value)}
-              rows={2}
-              placeholder="Write a message…"
-              className="w-full resize-none border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-text-muted"
+              rows={1}
+              placeholder="Message…"
+              className="max-h-32 min-h-[42px] w-full resize-none rounded-2xl border border-border bg-surface/50 px-4 py-2.5 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-metal/40"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  start(async () => {
-                    const res = await sendMessage({
-                      conversationId,
-                      body,
-                      imageUrl,
-                    });
-                    if (res.error) setError(res.error);
-                    else {
-                      setBody("");
-                      setImageUrl(null);
-                      setError(null);
-                      const thread = await loadThread(conversationId);
-                      setMessages(thread.messages);
-                    }
-                  });
+                  void doSend();
                 }
               }}
             />
-            {showEmoji ? (
-              <div className="absolute bottom-full left-0 mb-1 grid grid-cols-8 gap-1 border border-border bg-[#0c0c0e] p-2">
-                {EMOJIS.map((e) => (
-                  <button
-                    key={e}
-                    type="button"
-                    className="grid h-8 w-8 place-items-center text-base hover:bg-white/5"
-                    onClick={() => {
-                      setBody((b) => b + e);
-                      setShowEmoji(false);
-                    }}
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <AnimatePresence>
+              {gifHint ? (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute -top-7 left-0 text-[10px] text-text-muted"
+                >
+                  GIF search coming soon
+                </motion.p>
+              ) : null}
+            </AnimatePresence>
           </div>
+
           <button
             type="button"
-            className="border border-border px-2 py-2 text-sm"
-            onClick={() => setShowEmoji((v) => !v)}
-            aria-label="Emoji"
+            disabled={pending || (!body.trim() && !imageUrl)}
+            onClick={() => void doSend()}
+            className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-full bg-white text-bg transition-opacity disabled:opacity-40"
+            aria-label="Send"
           >
-            ☺
+            <SendIcon />
           </button>
-          <Button
-            type="button"
-            variant="primary"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const res = await sendMessage({
-                  conversationId,
-                  body,
-                  imageUrl,
-                });
-                if (res.error) setError(res.error);
-                else {
-                  setBody("");
-                  setImageUrl(null);
-                  setError(null);
-                  const thread = await loadThread(conversationId);
-                  setMessages(thread.messages);
-                }
-              })
-            }
-          >
-            Send
-          </Button>
-        </div>
-        <div className="mt-2">
-          <MediaUpload
-            bucket="messages"
-            pathPrefix={`${userId}/${conversationId}`}
-            accept="image"
-            maxFiles={1}
-            label="Attach photo"
-            onUploaded={(files) => {
-              if (files[0]) setImageUrl(files[0].publicUrl);
-            }}
-          />
         </div>
       </div>
+
+      {/* Lightbox */}
+      <AnimatePresence>
+        {lightbox ? (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightbox(null)}
+          >
+            <button
+              type="button"
+              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white"
+              onClick={() => setLightbox(null)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <motion.div
+              className="relative h-[min(80vh,720px)] w-full max-w-3xl"
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={lightbox}
+                alt=""
+                fill
+                className="object-contain"
+                sizes="90vw"
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 12L20 4L13 20L11 13L4 12Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function MessagesEmptyPane() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center bg-[#0c0c0e] px-6 text-center">
+      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-metal">
+        Direct messages
+      </p>
+      <h2 className="mt-2 font-[family-name:var(--font-display)] text-2xl font-semibold text-text">
+        Your garage chats
+      </h2>
+      <p className="mt-2 max-w-sm text-sm text-text-muted">
+        Pick a conversation from the list, or message someone from their
+        profile.
+      </p>
     </div>
   );
 }
