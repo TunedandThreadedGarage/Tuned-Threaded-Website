@@ -533,6 +533,8 @@ language plpgsql
 security definer
 set search_path = private
 as $$
+declare
+  affected integer;
 begin
   if new.last_read_at is not null then
     update private.notification_email_queue q
@@ -543,18 +545,22 @@ begin
       and q.conversation_id = new.conversation_id
       and q.status = 'pending'
       and q.created_at <= new.last_read_at;
+    get diagnostics affected = row_count;
 
-    perform private.log_delivery_event(
-      'email_cancelled',
-      new.user_id,
-      null,
-      'message',
-      null,
-      jsonb_build_object(
-        'reason', 'message_read',
-        'conversation_id', new.conversation_id
-      )
-    );
+    if affected > 0 then
+      perform private.log_delivery_event(
+        'email_cancelled',
+        new.user_id,
+        null,
+        'message',
+        null,
+        jsonb_build_object(
+          'reason', 'message_read',
+          'conversation_id', new.conversation_id,
+          'cancelled', affected
+        )
+      );
+    end if;
   end if;
   return new;
 end;

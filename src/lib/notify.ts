@@ -156,21 +156,22 @@ export async function notify(
   let inAppCreated = false;
   let notificationId: string | null = null;
   if (decision.inApp) {
-    const { data: created, error } = await supabase
-      .from("notifications")
-      .insert({
-        user_id: input.userId,
-        actor_id: input.actorId ?? null,
-        type: input.type,
-        entity_type: input.entityType ?? null,
-        entity_id: input.entityId ?? null,
-        message: input.message,
-        action: input.action ?? null,
-        href: input.href ?? null,
-        thumbnail_url: input.thumbnailUrl ?? null,
-      })
-      .select("id")
-      .single();
+    // Generate the id client-side instead of INSERT...RETURNING: the actor's
+    // client can insert for the recipient (insert policy) but cannot SELECT
+    // the recipient's row, so RETURNING would fail RLS and abort the insert.
+    const newId = crypto.randomUUID();
+    const { error } = await supabase.from("notifications").insert({
+      id: newId,
+      user_id: input.userId,
+      actor_id: input.actorId ?? null,
+      type: input.type,
+      entity_type: input.entityType ?? null,
+      entity_id: input.entityId ?? null,
+      message: input.message,
+      action: input.action ?? null,
+      href: input.href ?? null,
+      thumbnail_url: input.thumbnailUrl ?? null,
+    });
     if (error) {
       logNotify("in_app_failed", {
         type: input.type,
@@ -179,7 +180,7 @@ export async function notify(
       });
     } else {
       inAppCreated = true;
-      notificationId = created?.id ?? null;
+      notificationId = newId;
       logNotify("in_app_created", {
         type: input.type,
         userId: input.userId,
