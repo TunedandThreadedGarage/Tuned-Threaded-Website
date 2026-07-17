@@ -52,7 +52,11 @@ export function GarageProfileView({
         actions={actions}
       />
 
-      <GarageStatsGrid stats={stats} showJournal={isOwner} />
+      <GarageStatsGrid
+        stats={stats}
+        showJournal={isOwner}
+        username={profile.username}
+      />
 
       <FadeIn>
         <div className="grid gap-4 border border-border bg-surface/20 px-5 py-5 sm:grid-cols-3">
@@ -240,18 +244,9 @@ export function GarageProfileView({
 
       {profile.username ? (
         <div className="flex flex-wrap gap-4 text-sm text-text-muted">
-          <Link
-            href={`/garage/${profile.username}/followers`}
-            className="hover:text-text"
-          >
-            View followers
-          </Link>
-          <Link
-            href={`/garage/${profile.username}/following`}
-            className="hover:text-text"
-          >
-            View following
-          </Link>
+          <p className="text-xs text-metal">
+            Tap Followers or Following above to search members.
+          </p>
         </div>
       ) : null}
     </div>

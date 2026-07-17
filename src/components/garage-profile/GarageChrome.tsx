@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   GarageNav,
   isGarageShowcasePath,
@@ -14,6 +15,7 @@ export function GarageChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const reduce = useReducedMotion();
   const showcase = signedIn && isGarageShowcasePath(pathname);
 
   if (!signedIn) return <>{children}</>;
@@ -37,7 +39,19 @@ export function GarageChrome({
         </p>
       </div>
       <GarageNav />
-      <div className="mt-8">{children}</div>
+      <div className="relative mt-8 min-h-[40vh]">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={pathname}
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? undefined : { opacity: 0, y: -8 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </>
   );
 }

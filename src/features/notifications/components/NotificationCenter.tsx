@@ -47,6 +47,28 @@ export function NotificationCenter({
   }, [items]);
 
   const unreadCount = items.filter((i) => !i.readAt).length;
+  const markedViewRef = useRef(false);
+
+  // Clear unread badge when the inbox is viewed.
+  useEffect(() => {
+    if (markedViewRef.current) return;
+    const hasUnread = initialItems.some((i) => !i.readAt);
+    if (!hasUnread) {
+      markedViewRef.current = true;
+      return;
+    }
+    markedViewRef.current = true;
+    start(async () => {
+      await markAllNotificationsRead();
+      setItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          readAt: item.readAt ?? new Date().toISOString(),
+        })),
+      );
+      window.dispatchEvent(new Event("tt:notifications-read"));
+    });
+  }, [initialItems]);
 
   const prependRealtime = useCallback(async (id: string) => {
     const { item } = await loadNotificationById(id);
@@ -184,6 +206,7 @@ export function NotificationCenter({
                   readAt: item.readAt ?? new Date().toISOString(),
                 })),
               );
+              window.dispatchEvent(new Event("tt:notifications-read"));
             })
           }
         >

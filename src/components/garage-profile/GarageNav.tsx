@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 
 const LINKS: { href: string; label: string; exact?: boolean }[] = [
   { href: "/garage", label: "Profile", exact: true },
@@ -26,13 +27,20 @@ export function GarageNav() {
           <Link
             key={link.href}
             href={link.href}
-            className={`shrink-0 px-3 py-3 text-sm transition-colors ${
-              active
-                ? "border-b-2 border-text text-text"
-                : "border-b-2 border-transparent text-text-muted hover:text-text"
+            prefetch
+            scroll={false}
+            className={`relative shrink-0 px-3 py-3 text-sm transition-colors ${
+              active ? "text-text" : "text-text-muted hover:text-text"
             }`}
           >
             {link.label}
+            {active ? (
+              <motion.span
+                layoutId="garage-nav-underline"
+                className="absolute inset-x-3 -bottom-px h-0.5 bg-text"
+                transition={{ type: "spring", stiffness: 420, damping: 36 }}
+              />
+            ) : null}
           </Link>
         );
       })}
@@ -49,6 +57,7 @@ export function isGarageShowcasePath(pathname: string) {
     pathname.startsWith("/garage/gallery") ||
     pathname.startsWith("/garage/vehicles") ||
     pathname.startsWith("/garage/followers") ||
-    pathname.startsWith("/garage/following")
+    pathname.startsWith("/garage/following") ||
+    pathname.startsWith("/garage/merch")
   );
 }

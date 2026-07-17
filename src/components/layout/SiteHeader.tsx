@@ -6,6 +6,7 @@ import { BrandLogo } from "@/components/garage/BrandLogo";
 import { useGarage } from "@/components/garage/GarageExperience";
 import { useCart } from "@/components/cart/CartProvider";
 import { UserAccountMenu } from "@/components/layout/UserAccountMenu";
+import { NotificationBell } from "@/features/notifications/components/NotificationBell";
 import { siteNavLinks } from "@/lib/site";
 
 function IconSearch({ className }: { className?: string }) {
@@ -93,6 +94,7 @@ export function SiteHeader() {
           >
             <IconSearch className="h-[18px] w-[18px]" />
           </button>
+          <NotificationBell />
           <UserAccountMenu />
           <button
             type="button"

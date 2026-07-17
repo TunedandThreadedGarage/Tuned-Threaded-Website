@@ -41,6 +41,11 @@ export function NotificationBell() {
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
+    function onCleared() {
+      setCount(0);
+    }
+    window.addEventListener("tt:notifications-read", onCleared);
+
     void (async () => {
       const {
         data: { user },
@@ -85,6 +90,7 @@ export function NotificationBell() {
     })();
 
     return () => {
+      window.removeEventListener("tt:notifications-read", onCleared);
       if (channel) void supabase.removeChannel(channel);
     };
   }, [refresh]);

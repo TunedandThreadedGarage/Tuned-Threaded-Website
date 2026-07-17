@@ -9,6 +9,8 @@ export const config = {
   matcher: [
     "/garage/:path*",
     "/admin/:path*",
+    "/merch",
+    "/merch/:path*",
     "/auth/callback",
   ],
 };

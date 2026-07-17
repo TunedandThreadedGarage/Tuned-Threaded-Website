@@ -5,6 +5,7 @@ export const siteNavLinks = [
   { label: "Community", href: "/community" },
   { label: "Builds", href: "/builds" },
   { label: "Journal", href: "/journal" },
+  { label: "Create", href: "/merch" },
 ] as const;
 
 export const footerLinks = [
