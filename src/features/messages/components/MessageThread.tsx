@@ -18,9 +18,13 @@ import {
 import { ReportButton } from "@/features/moderation/components/ReportButton";
 import {
   formatMessageTime,
+  presenceDotClass,
+  presenceLabel,
   useOnlinePresence,
 } from "@/features/messages/hooks";
 import { DmImageAttach } from "@/features/messages/components/DmImageAttach";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { ensureRealtimeAuth } from "@/lib/supabase/realtime";
 
 const EMOJIS = [
   "😀", "😂", "🔥", "❤️", "👍", "👎", "😮", "😢",
@@ -62,8 +66,11 @@ export function MessageThread({
   const channelRef = useRef<ReturnType<
     ReturnType<typeof createClient>["channel"]
   > | null>(null);
-  const { isOnline } = useOnlinePresence();
-  const peerOnline = peer ? isOnline(peer.id) : false;
+  const { getStatus } = useOnlinePresence();
+  const { realtimeEpoch } = useAuth();
+  const peerStatus = peer ? getStatus(peer.id) : "offline";
+  const typingStopTimer = useRef<number | null>(null);
+  const peerTypingClear = useRef<number | null>(null);
 
   useEffect(() => {
     void markConversationRead(conversationId);
@@ -82,92 +89,160 @@ export function MessageThread({
   }, []);
 
   useEffect(() => {
+    let alive = true;
     const supabase = createClient();
-    const channel = supabase
-      .channel(`dm:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "dm_messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const row = payload.new as ThreadMessage;
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === row.id)) return prev;
-            return [...prev, { ...row, seen: false }];
-          });
-          if (row.sender_id !== userId) {
-            void markConversationRead(conversationId);
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "dm_participants",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            user_id: string;
-            last_read_at: string | null;
-          };
-          if (row.user_id !== userId) {
-            setPeerLastReadAt(row.last_read_at);
-          }
-        },
-      )
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
-        const p = payload as { userId?: string };
-        if (p.userId && p.userId !== userId) {
-          setPeerTyping(true);
-          window.setTimeout(() => setPeerTyping(false), 2000);
-        }
-      })
-      .subscribe();
 
-    channelRef.current = channel;
+    void (async () => {
+      await ensureRealtimeAuth(supabase);
+      if (!alive) return;
+
+      const channel = supabase
+        .channel(`dm:${conversationId}:${realtimeEpoch}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "dm_messages",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const row = payload.new as ThreadMessage;
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === row.id)) return prev;
+              // Drop optimistic temp rows once the real insert arrives.
+              const withoutTemp = prev.filter(
+                (m) => !m.id.startsWith("temp:") || m.body !== row.body,
+              );
+              return [...withoutTemp, { ...row, seen: false }];
+            });
+            if (row.sender_id !== userId) {
+              setPeerTyping(false);
+              void markConversationRead(conversationId);
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "dm_participants",
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              user_id: string;
+              last_read_at: string | null;
+            };
+            if (row.user_id !== userId) {
+              setPeerLastReadAt(row.last_read_at);
+            }
+          },
+        )
+        .on("broadcast", { event: "typing" }, ({ payload }) => {
+          const p = payload as { userId?: string; active?: boolean };
+          if (p.userId && p.userId !== userId) {
+            if (p.active === false) {
+              setPeerTyping(false);
+              return;
+            }
+            setPeerTyping(true);
+            if (peerTypingClear.current) {
+              window.clearTimeout(peerTypingClear.current);
+            }
+            peerTypingClear.current = window.setTimeout(
+              () => setPeerTyping(false),
+              2500,
+            );
+          }
+        })
+        .subscribe();
+
+      channelRef.current = channel;
+    })();
+
     return () => {
-      void supabase.removeChannel(channel);
+      alive = false;
+      if (channelRef.current) {
+        void supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      if (peerTypingClear.current) {
+        window.clearTimeout(peerTypingClear.current);
+      }
     };
-  }, [conversationId, userId]);
+  }, [conversationId, userId, realtimeEpoch]);
 
-  const broadcastTyping = useCallback(() => {
-    const ch = channelRef.current;
-    if (!ch) return;
-    void ch.send({
-      type: "broadcast",
-      event: "typing",
-      payload: { userId },
-    });
-  }, [userId]);
+  const broadcastTyping = useCallback(
+    (active: boolean) => {
+      const ch = channelRef.current;
+      if (!ch) return;
+      void ch.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { userId, active },
+      });
+    },
+    [userId],
+  );
 
   function onBodyChange(value: string) {
     setBody(value);
     if (typingTimer.current) window.clearTimeout(typingTimer.current);
-    typingTimer.current = window.setTimeout(() => broadcastTyping(), 200);
+    if (typingStopTimer.current) window.clearTimeout(typingStopTimer.current);
+    typingTimer.current = window.setTimeout(() => broadcastTyping(true), 120);
+    // Auto-stop typing indicator after inactivity.
+    typingStopTimer.current = window.setTimeout(
+      () => broadcastTyping(false),
+      1800,
+    );
   }
 
   async function doSend() {
     if (pending) return;
     if (!body.trim() && !imageUrl) return;
+    const optimisticBody = body;
+    const optimisticImage = imageUrl;
+    const tempId = `temp:${Date.now()}`;
+    const optimistic: ThreadMessage = {
+      id: tempId,
+      conversation_id: conversationId,
+      sender_id: userId,
+      body: optimisticBody.trim(),
+      image_url: optimisticImage,
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+      seen: false,
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    setBody("");
+    setImageUrl(null);
+    setShowEmoji(false);
+    setError(null);
+    broadcastTyping(false);
+
     start(async () => {
       const res = await sendMessage({
         conversationId,
-        body,
-        imageUrl,
+        body: optimisticBody,
+        imageUrl: optimisticImage,
       });
-      if (res.error) setError(res.error);
-      else {
-        setBody("");
-        setImageUrl(null);
-        setError(null);
-        setShowEmoji(false);
+      if (res.error) {
+        setError(res.error);
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setBody(optimisticBody);
+        setImageUrl(optimisticImage);
+        return;
+      }
+      if (res.id) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? { ...m, id: res.id!, seen: false } : m,
+          ),
+        );
+      } else {
         const thread = await loadThread(conversationId);
         setMessages(thread.messages);
       }
@@ -199,9 +274,8 @@ export function MessageThread({
                   size="sm"
                 />
                 <span
-                  className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0c] ${
-                    peerOnline ? "bg-emerald-400" : "bg-zinc-600"
-                  }`}
+                  className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0c] ${presenceDotClass(peerStatus)}`}
+                  title={presenceLabel(peerStatus)}
                 />
               </div>
               <div className="min-w-0">
@@ -211,8 +285,16 @@ export function MessageThread({
                 <p className="truncate text-xs text-text-muted">
                   @{peer.username}
                   <span className="mx-1.5 text-border">·</span>
-                  <span className={peerOnline ? "text-emerald-400/90" : ""}>
-                    {peerOnline ? "Online" : "Offline"}
+                  <span
+                    className={
+                      peerStatus === "online"
+                        ? "text-emerald-400/90"
+                        : peerStatus === "away"
+                          ? "text-amber-400/90"
+                          : ""
+                    }
+                  >
+                    {presenceLabel(peerStatus)}
                   </span>
                   {initialStatus === "request" ? (
                     <span className="ml-1.5 text-metal">Request</span>
@@ -378,7 +460,11 @@ export function MessageThread({
                   </span>
                   {mine ? (
                     <span className="text-[10px] text-text-muted">
-                      {seen ? "Seen" : "Sent"}
+                      {m.id.startsWith("temp:")
+                        ? "Sending…"
+                        : seen
+                          ? "Read"
+                          : "Delivered"}
                     </span>
                   ) : (
                     <ReportButton

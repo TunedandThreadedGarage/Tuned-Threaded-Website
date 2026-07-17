@@ -1,0 +1,29 @@
+{
+  "printifyListed": 1,
+  "printifyUnpublished": 1,
+  "printifyDeleted": 1,
+  "printifyFailed": [],
+  "shopifyListedBefore": 2,
+  "shopifyDeleted": 2,
+  "shopifyFailed": [],
+  "printifyRemaining": 0,
+  "shopifyRemaining": 0,
+  "printifyProducts": [
+    {
+      "id": "6a59a85e67de71ea1a04421a",
+      "title": "Tuned & Threaded Premium Heavyweight Hoodie | Built in Garages"
+    }
+  ],
+  "shopifyProducts": [
+    {
+      "id": "gid://shopify/Product/8105869934694",
+      "title": "Midnight Torque Tee",
+      "handle": "midnight-torque-tee"
+    },
+    {
+      "id": "gid://shopify/Product/8107678040166",
+      "title": "Tuned & Threaded Premium Heavyweight Hoodie | Built in Garages",
+      "handle": "tuned-threaded-premium-heavyweight-hoodie-built-in-garages"
+    }
+  ]
+}

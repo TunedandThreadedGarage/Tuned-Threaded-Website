@@ -6,10 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ensureRealtimeAuth } from "@/lib/supabase/realtime";
+import { useAuth, type PresenceStatus } from "@/components/auth/AuthProvider";
 
 const PIN_KEY = "tt:dm-pinned";
 
@@ -44,13 +47,19 @@ export function usePinnedConversations() {
 }
 
 type PresenceCtx = {
+  getStatus: (id: string) => PresenceStatus;
   isOnline: (id: string) => boolean;
 };
 
 const OnlinePresenceContext = createContext<PresenceCtx>({
+  getStatus: () => "offline",
   isOnline: () => false,
 });
 
+/**
+ * Messages-scoped presence bridge — prefers global AuthProvider presence
+ * so status works across the site, not only on /messages.
+ */
 export function OnlinePresenceProvider({
   userId,
   children,
@@ -58,39 +67,68 @@ export function OnlinePresenceProvider({
   userId: string;
   children: ReactNode;
 }) {
-  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const { getPresence, realtimeEpoch } = useAuth();
+  const [fallbackOnline, setFallbackOnline] = useState<Set<string>>(new Set());
+  const channelRef = useRef<ReturnType<
+    ReturnType<typeof createClient>["channel"]
+  > | null>(null);
 
   useEffect(() => {
+    if (!userId) return;
+    let alive = true;
     const supabase = createClient();
-    const channel = supabase.channel("presence:messages", {
-      config: { presence: { key: userId } },
-    });
 
-    const sync = () => {
-      const state = channel.presenceState();
-      setOnlineIds(new Set(Object.keys(state)));
-    };
+    void (async () => {
+      await ensureRealtimeAuth(supabase);
+      if (!alive) return;
 
-    channel
-      .on("presence", { event: "sync" }, sync)
-      .on("presence", { event: "join" }, sync)
-      .on("presence", { event: "leave" }, sync)
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({ online_at: new Date().toISOString() });
-        }
+      const channel = supabase.channel("presence:messages", {
+        config: { presence: { key: userId } },
       });
+      channelRef.current = channel;
+
+      const sync = () => {
+        const state = channel.presenceState();
+        setFallbackOnline(new Set(Object.keys(state)));
+      };
+
+      channel
+        .on("presence", { event: "sync" }, sync)
+        .on("presence", { event: "join" }, sync)
+        .on("presence", { event: "leave" }, sync)
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED" && alive) {
+            await channel.track({
+              status: "online",
+              at: new Date().toISOString(),
+            });
+          }
+        });
+    })();
 
     return () => {
-      void supabase.removeChannel(channel);
+      alive = false;
+      if (channelRef.current) {
+        void supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
-  }, [userId]);
+  }, [userId, realtimeEpoch]);
 
-  const value = useMemo(
+  const value = useMemo<PresenceCtx>(
     () => ({
-      isOnline: (id: string) => onlineIds.has(id),
+      getStatus: (id: string) => {
+        const global = getPresence(id);
+        if (global !== "offline") return global;
+        return fallbackOnline.has(id) ? "online" : "offline";
+      },
+      isOnline: (id: string) => {
+        const status = getPresence(id);
+        if (status === "online" || status === "away") return true;
+        return fallbackOnline.has(id);
+      },
     }),
-    [onlineIds],
+    [getPresence, fallbackOnline],
   );
 
   return (
@@ -125,4 +163,16 @@ export function formatMessageTime(iso: string | null) {
     return "Yesterday";
   }
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export function presenceLabel(status: PresenceStatus): string {
+  if (status === "online") return "Online";
+  if (status === "away") return "Away";
+  return "Offline";
+}
+
+export function presenceDotClass(status: PresenceStatus): string {
+  if (status === "online") return "bg-emerald-400";
+  if (status === "away") return "bg-amber-400";
+  return "bg-zinc-600";
 }

@@ -35,9 +35,12 @@ function isPublicGaragePath(pathname: string): boolean {
 function requiresAuth(pathname: string): boolean {
   if (pathname.startsWith("/admin")) return true;
   if (pathname === "/merch" || pathname.startsWith("/merch/")) return true;
+  if (pathname.startsWith("/messages")) return true;
+  if (pathname.startsWith("/notifications")) return true;
   if (!pathname.startsWith("/garage")) return false;
   if (pathname.startsWith("/garage/sign-in")) return false;
   if (pathname.startsWith("/garage/sign-up")) return false;
+  if (pathname.startsWith("/garage/forgot-password")) return false;
   // Shopify Storefront cart — guests can checkout without a Garage account.
   if (pathname === "/garage/cart" || pathname.startsWith("/garage/cart/")) {
     return false;

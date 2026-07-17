@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useId, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { signOut } from "@/features/auth/actions";
 import { useGarage } from "@/components/garage/GarageExperience";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { SignOutButton } from "@/features/auth/components/SignOutButton";
 
 const MENU_ITEMS = [
   { href: "/garage", label: "My Profile" },
@@ -32,23 +32,10 @@ function IconAccount({ className }: { className?: string }) {
 
 export function UserAccountMenu() {
   const { phase } = useGarage();
+  const { userId, ready } = useAuth();
   const [open, setOpen] = useState(false);
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-
-  useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      setSignedIn(Boolean(data.user));
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(Boolean(session?.user));
-    });
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +53,7 @@ export function UserAccountMenu() {
     };
   }, [open]);
 
-  if (signedIn === false) {
+  if (ready && !userId) {
     return (
       <Link
         href="/garage/sign-in"
@@ -90,12 +77,13 @@ export function UserAccountMenu() {
         className="grid h-10 w-10 place-items-center text-text-muted transition-colors hover:text-text"
         tabIndex={phase === "open" ? undefined : -1}
         onClick={() => setOpen((v) => !v)}
+        disabled={!ready}
       >
         <IconAccount className="h-[18px] w-[18px]" />
       </button>
 
       <AnimatePresence>
-        {open ? (
+        {open && userId ? (
           <motion.div
             id={menuId}
             role="menu"
@@ -125,15 +113,9 @@ export function UserAccountMenu() {
               ))}
             </ul>
             <div className="border-t border-border p-1">
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  role="menuitem"
-                  className="w-full px-3 py-2.5 text-left text-sm text-text-muted transition-colors hover:bg-white/[0.04] hover:text-accent"
-                >
-                  Sign Out
-                </button>
-              </form>
+              <SignOutButton
+                className="w-full px-3 py-2.5 text-left text-sm text-text-muted transition-colors hover:bg-white/[0.04] hover:text-accent"
+              />
             </div>
           </motion.div>
         ) : null}

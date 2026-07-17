@@ -43,6 +43,9 @@ Dark layout in `src/lib/email/brand.ts`: TT mark, Georgia/Helvetica stack, accen
 
 ## Ops notes
 
-- Disable duplicate Supabase Auth emails in the dashboard if only branded Resend mail should arrive for verify/reset.
-- Apply migration `supabase/migrations/20260717_notification_gallery_journal_prefs.sql` for `garage_photo_likes` and `journal`/`gallery` preference seeds.
+- Activity emails need a recipient lookup: set `SUPABASE_SERVICE_ROLE_KEY` **or** `NOTIFY_LOOKUP_SECRET` (matches `private.app_secrets.notify_lookup`).
+- Welcome/verify/reset emails pass the address directly and do not need lookup.
+- Followers + messages both flow through `createNotification` / `notify()` in `src/lib/notify.ts` — never call Resend from feature actions.
+- Structured logs: `[notify:event_received]`, `[notify:preference_checked]`, `[notify:in_app_created]`, `[notify:email_queued]`, `[notify:resend_calling]`, `[notify:resend_success]`.
+- Apply migration `supabase/migrations/20260717_notification_email_pipeline.sql` for private email sync + follower email defaults.
 - Wire Shopify/Printify webhooks to `notifyOrderUpdate` when fulfillment events go live.

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "@/components/garage-profile/Avatar";
 import type { ConversationListItem } from "@/features/messages/actions";
@@ -14,14 +14,20 @@ import {
 } from "@/features/messages/actions";
 import {
   formatMessageTime,
+  presenceDotClass,
+  presenceLabel,
   useOnlinePresence,
   usePinnedConversations,
 } from "@/features/messages/hooks";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { createClient } from "@/lib/supabase/client";
+import { ensureRealtimeAuth } from "@/lib/supabase/realtime";
 
 export function MessagesInbox({
   initialItems,
   mode = "inbox",
   activeId,
+  userId,
 }: {
   initialItems: ConversationListItem[];
   mode?: "inbox" | "requests";
@@ -33,7 +39,110 @@ export function MessagesInbox({
   const [items, setItems] = useState(initialItems);
   const [pending, start] = useTransition();
   const { isPinned, togglePin, pinned } = usePinnedConversations();
-  const { isOnline } = useOnlinePresence();
+  const { getStatus } = useOnlinePresence();
+  const { realtimeEpoch, userId: authUserId } = useAuth();
+  const uid = userId ?? authUserId;
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+
+  useEffect(() => {
+    if (!uid || mode !== "inbox") return;
+    let alive = true;
+    const supabase = createClient();
+
+    void (async () => {
+      await ensureRealtimeAuth(supabase);
+      if (!alive) return;
+
+      const channel = supabase
+        .channel(`dm-inbox:${uid}:${realtimeEpoch}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "dm_conversations",
+          },
+          (payload) => {
+            const row = payload.new as {
+              id?: string;
+              last_message_at?: string | null;
+              last_message_preview?: string | null;
+            } | null;
+            if (!row?.id) return;
+            setItems((prev) => {
+              const idx = prev.findIndex((i) => i.id === row.id);
+              if (idx === -1) {
+                router.refresh();
+                return prev;
+              }
+              const next = [...prev];
+              next[idx] = {
+                ...next[idx],
+                lastMessageAt: row.last_message_at ?? next[idx].lastMessageAt,
+                lastMessagePreview:
+                  row.last_message_preview ?? next[idx].lastMessagePreview,
+                unread: activeId === row.id ? false : true,
+              };
+              return next;
+            });
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "dm_messages",
+          },
+          (payload) => {
+            const row = payload.new as {
+              conversation_id?: string;
+              sender_id?: string;
+              body?: string;
+              image_url?: string | null;
+              created_at?: string;
+            };
+            if (!row.conversation_id) return;
+            setItems((prev) => {
+              const idx = prev.findIndex((i) => i.id === row.conversation_id);
+              if (idx === -1) {
+                router.refresh();
+                return prev;
+              }
+              const preview = row.body?.trim()
+                ? row.body.slice(0, 120)
+                : row.image_url
+                  ? "Sent a photo"
+                  : prev[idx].lastMessagePreview;
+              const next = [...prev];
+              next[idx] = {
+                ...next[idx],
+                lastMessageAt: row.created_at ?? next[idx].lastMessageAt,
+                lastMessagePreview: preview,
+                unread:
+                  row.sender_id !== uid && activeId !== row.conversation_id,
+              };
+              return next;
+            });
+          },
+        )
+        .subscribe();
+
+      channelRef.current = channel;
+    })();
+
+    return () => {
+      alive = false;
+      if (channelRef.current) {
+        void supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [uid, mode, realtimeEpoch, router, activeId]);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -118,7 +227,7 @@ export function MessagesInbox({
             <AnimatePresence initial={false}>
               {filtered.map((item) => {
                 const active = activeId === item.id;
-                const online = isOnline(item.peer.id);
+                const status = getStatus(item.peer.id);
                 const pinnedItem = isPinned(item.id);
                 return (
                   <motion.li
@@ -145,10 +254,8 @@ export function MessagesInbox({
                           size="sm"
                         />
                         <span
-                          className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0c] ${
-                            online ? "bg-emerald-400" : "bg-zinc-600"
-                          }`}
-                          title={online ? "Online" : "Offline"}
+                          className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#0a0a0c] ${presenceDotClass(status)}`}
+                          title={presenceLabel(status)}
                         />
                       </div>
                       <div className="min-w-0 flex-1">

@@ -93,19 +93,32 @@ export async function dispatchNotificationEmail(
     actorName?: string | null;
     /** Skip preference check when already validated by caller. */
     skipPreferenceCheck?: boolean;
+    /** Pre-resolved recipient (avoids a second lookup). */
+    to?: string | null;
   },
-): Promise<void> {
+): Promise<{ ok: boolean; id?: string; skipped?: boolean; error?: string }> {
   if (!input.skipPreferenceCheck) {
     const decision = await getChannelDecision(
       supabase,
       input.userId,
       input.type,
     );
-    if (!decision.email) return;
+    if (!decision.email) {
+      console.info(
+        `[notify:dispatch:skip] type=${input.type} userId=${input.userId} reason=preference`,
+      );
+      return { ok: true, skipped: true };
+    }
   }
 
-  const to = await resolveRecipientEmail(input.userId);
-  if (!to) return;
+  const to =
+    input.to ?? (await resolveRecipientEmail(input.userId, supabase));
+  if (!to) {
+    console.error(
+      `[notify:dispatch:abort] type=${input.type} userId=${input.userId} reason=no_recipient`,
+    );
+    return { ok: false, error: "no_recipient" };
+  }
 
   const href = input.href?.startsWith("http")
     ? input.href
@@ -118,7 +131,10 @@ export async function dispatchNotificationEmail(
     actor,
   });
 
-  await sendEmail({ to, subject: tpl.subject, html: tpl.html });
+  console.info(
+    `[notify:dispatch:resend] type=${input.type} userId=${input.userId} to=${to} subject=${tpl.subject}`,
+  );
+  return sendEmail({ to, subject: tpl.subject, html: tpl.html });
 }
 
 export async function sendWelcomeEmail(to: string): Promise<void> {

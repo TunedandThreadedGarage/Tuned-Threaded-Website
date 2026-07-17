@@ -151,10 +151,31 @@ describe("eventKeyForNotificationType", () => {
     }
   });
 
-  it("falls back to the raw type when unmapped", () => {
-    expect(eventKeyForNotificationType("custom_future_type")).toBe(
-      "custom_future_type",
-    );
+  it("maps follower and message types to preference keys that enable email by default", () => {
+    expect(eventKeyForNotificationType("garage_follow")).toBe("followers");
+    expect(eventKeyForNotificationType("follow")).toBe("followers");
+    expect(eventKeyForNotificationType("message")).toBe("messages");
+    expect(eventKeyForNotificationType("message_request")).toBe("messages");
+
+    // Default when channel row missing: email on
+    expect(
+      decideChannels({
+        masterEnabled: true,
+        emailFrequency: "instant",
+        emailEnabled: undefined,
+        inAppEnabled: true,
+      }).email,
+    ).toBe(true);
+
+    // Explicit followers preference off blocks email
+    expect(
+      decideChannels({
+        masterEnabled: true,
+        emailFrequency: "instant",
+        emailEnabled: false,
+        inAppEnabled: true,
+      }).email,
+    ).toBe(false);
   });
 });
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOAuthProviders } from "@/features/auth/providers";
@@ -42,7 +43,6 @@ export async function signUpWithEmail(
 
   if (error) return { error: error.message };
 
-  // Branded welcome — fires as soon as the account exists.
   try {
     const { sendWelcomeEmail } = await import("@/lib/email/dispatch");
     await sendWelcomeEmail(email);
@@ -50,7 +50,6 @@ export async function signUpWithEmail(
     // Welcome email is best-effort; never block signup.
   }
 
-  // Branded verification when Supabase requires email confirmation.
   if (!data.session) {
     try {
       const admin = createAdminClient();
@@ -70,16 +69,15 @@ export async function signUpWithEmail(
         }
       }
     } catch {
-      // Verification email is best-effort; Supabase may also send its own.
+      // Verification email is best-effort.
     }
   }
 
-  // Instant session when "Confirm email" is disabled in Supabase.
   if (data.session) {
+    revalidatePath("/", "layout");
     redirect("/garage/onboarding");
   }
 
-  // Account created; waiting on email confirmation.
   return {
     success: true,
     message:
@@ -87,6 +85,7 @@ export async function signUpWithEmail(
   };
 }
 
+/** Kept for progressive enhancement; primary path is client SignInForm. */
 export async function signInWithEmail(
   _prev: AuthResult,
   formData: FormData,
@@ -103,6 +102,7 @@ export async function signInWithEmail(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
 
+  revalidatePath("/", "layout");
   redirect(next.startsWith("/") ? next : "/garage");
 }
 
@@ -130,7 +130,6 @@ export async function requestPasswordReset(
         await sendPasswordResetEmail(email, resetUrl);
       }
     } else {
-      // Fallback when service role is unavailable — uses Supabase mailer.
       const supabase = await createClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
@@ -152,6 +151,7 @@ export async function requestPasswordReset(
 export async function signOut(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  revalidatePath("/", "layout");
   redirect("/");
 }
 

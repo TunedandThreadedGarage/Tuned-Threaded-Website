@@ -88,60 +88,70 @@ export function NotificationCenter({
   }, []);
 
   useEffect(() => {
+    let alive = true;
     const supabase = createClient();
-    const channel = supabase
-      .channel(`notifications:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const id = (payload.new as { id?: string })?.id;
-          if (id) void prependRealtime(id);
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            id: string;
-            read_at: string | null;
-          };
-          setItems((prev) =>
-            prev.map((item) =>
-              item.id === row.id ? { ...item, readAt: row.read_at } : item,
-            ),
-          );
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const id = (payload.old as { id?: string })?.id;
-          if (!id) return;
-          setItems((prev) => prev.filter((item) => item.id !== id));
-        },
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    void (async () => {
+      const { ensureRealtimeAuth } = await import("@/lib/supabase/realtime");
+      await ensureRealtimeAuth(supabase);
+      if (!alive) return;
+
+      channel = supabase
+        .channel(`notifications:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const id = (payload.new as { id?: string })?.id;
+            if (id) void prependRealtime(id);
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              id: string;
+              read_at: string | null;
+            };
+            setItems((prev) =>
+              prev.map((item) =>
+                item.id === row.id ? { ...item, readAt: row.read_at } : item,
+              ),
+            );
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const id = (payload.old as { id?: string })?.id;
+            if (!id) return;
+            setItems((prev) => prev.filter((item) => item.id !== id));
+          },
+        )
+        .subscribe();
+    })();
 
     return () => {
-      void supabase.removeChannel(channel);
+      alive = false;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [prependRealtime, userId]);
 

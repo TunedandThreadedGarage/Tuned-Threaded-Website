@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ensureRealtimeAuth } from "@/lib/supabase/realtime";
 import { getUnreadNotificationCount } from "@/features/notifications/actions";
 import { useGarage } from "@/components/garage/GarageExperience";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 function BellIcon({ className }: { className?: string }) {
   return (
@@ -27,9 +29,8 @@ function BellIcon({ className }: { className?: string }) {
 
 export function NotificationBell() {
   const { phase } = useGarage();
+  const { userId, ready: authReady, realtimeEpoch } = useAuth();
   const [count, setCount] = useState(0);
-  const [ready, setReady] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [pulse, setPulse] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -38,8 +39,14 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
+    if (!authReady || !userId) {
+      setCount(0);
+      return;
+    }
+
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let alive = true;
 
     function onCleared() {
       setCount(0);
@@ -47,26 +54,20 @@ export function NotificationBell() {
     window.addEventListener("tt:notifications-read", onCleared);
 
     void (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setReady(true);
-        return;
-      }
-      setUserId(user.id);
+      await ensureRealtimeAuth(supabase);
+      if (!alive) return;
       await refresh();
-      setReady(true);
+      if (!alive) return;
 
       channel = supabase
-        .channel(`nav-notifications:${user.id}`)
+        .channel(`nav-notifications:${userId}:${realtimeEpoch}`)
         .on(
           "postgres_changes",
           {
             event: "INSERT",
             schema: "public",
             table: "notifications",
-            filter: `user_id=eq.${user.id}`,
+            filter: `user_id=eq.${userId}`,
           },
           () => {
             setCount((c) => c + 1);
@@ -80,7 +81,7 @@ export function NotificationBell() {
             event: "*",
             schema: "public",
             table: "notifications",
-            filter: `user_id=eq.${user.id}`,
+            filter: `user_id=eq.${userId}`,
           },
           () => {
             void refresh();
@@ -90,12 +91,13 @@ export function NotificationBell() {
     })();
 
     return () => {
+      alive = false;
       window.removeEventListener("tt:notifications-read", onCleared);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [refresh]);
+  }, [authReady, userId, realtimeEpoch, refresh]);
 
-  if (!ready || !userId) {
+  if (!authReady || !userId) {
     return (
       <Link
         href="/garage/sign-in?next=/notifications"
