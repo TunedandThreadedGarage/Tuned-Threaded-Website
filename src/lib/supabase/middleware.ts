@@ -33,6 +33,7 @@ function isPublicGaragePath(pathname: string): boolean {
 }
 
 function requiresAuth(pathname: string): boolean {
+  if (pathname.startsWith("/admin")) return true;
   if (!pathname.startsWith("/garage")) return false;
   if (pathname.startsWith("/garage/sign-in")) return false;
   if (pathname.startsWith("/garage/sign-up")) return false;

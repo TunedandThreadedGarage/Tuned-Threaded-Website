@@ -18,6 +18,16 @@ const nextConfig: NextConfig = {
         hostname: "cdn.shopify.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "images.printify.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "pfy-prod-image-storage.s3.us-east-2.amazonaws.com",
+        pathname: "/**",
+      },
     ],
   },
 };
