@@ -163,21 +163,21 @@ export async function startConversation(
     const mutual = await areMutual(supabase, user.id, peerUserId);
     const status: DmConversationStatus = mutual ? "inbox" : "request";
 
-    const { data: conv, error: convErr } = await supabase
-      .from("dm_conversations")
-      .insert({ status })
-      .select("id")
-      .single();
-    if (convErr || !conv) return { error: convErr?.message ?? "Failed." };
-
-    const { error: partErr } = await supabase.from("dm_participants").insert([
-      { conversation_id: conv.id, user_id: user.id },
-      { conversation_id: conv.id, user_id: peerUserId },
-    ]);
-    if (partErr) return { error: partErr.message };
+    // Atomic RPC: creates conversation + both participants (avoids RLS
+    // chicken-and-egg on insert().select() before membership exists).
+    const { data: convId, error: convErr } = await supabase.rpc(
+      "create_dm_conversation",
+      {
+        peer_user_id: peerUserId,
+        initial_status: status,
+      },
+    );
+    if (convErr || !convId) {
+      return { error: convErr?.message ?? "Failed to create conversation." };
+    }
 
     revalidatePath("/messages");
-    return { success: true, id: conv.id };
+    return { success: true, id: String(convId) };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };
   }
