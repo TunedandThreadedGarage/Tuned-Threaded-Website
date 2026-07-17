@@ -27,6 +27,15 @@ export async function updateAccountPassword(
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
 
+  try {
+    if (user.email) {
+      const { sendSecurityEmail } = await import("@/lib/email/dispatch");
+      await sendSecurityEmail(user.email, "passwordChanged");
+    }
+  } catch {
+    // Security email is best-effort.
+  }
+
   revalidatePath("/garage/settings/password");
   return { success: true };
 }

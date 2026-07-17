@@ -1,4 +1,4 @@
-import { TYPE_TO_EVENT_KEY } from "@/features/settings/constants";
+import { decideChannels, eventKeyForNotificationType } from "@/lib/email/channelDecision";
 import { lookupUserEmail } from "@/lib/supabase/admin";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11,7 +11,7 @@ export type ChannelDecision = {
   frequency: "instant" | "daily" | "weekly" | "never";
 };
 
-const DEFAULT: ChannelDecision = {
+const FALLBACK: ChannelDecision = {
   inApp: true,
   email: true,
   push: false,
@@ -22,37 +22,42 @@ export async function getChannelDecision(
   supabase: AnySupabase,
   userId: string,
   notificationType: string,
+  opts?: { force?: boolean },
 ): Promise<ChannelDecision> {
-  const eventKey = TYPE_TO_EVENT_KEY[notificationType] ?? notificationType;
-
-  const [{ data: settings }, { data: channel }] = await Promise.all([
-    supabase
-      .from("communication_settings")
-      .select("master_enabled, email_frequency")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabase
-      .from("notification_channel_preferences")
-      .select("email_enabled, in_app_enabled, push_enabled")
-      .eq("user_id", userId)
-      .eq("event_key", eventKey)
-      .maybeSingle(),
-  ]);
-
-  // Tables not migrated yet — keep prior behavior.
-  if (!settings && !channel) return DEFAULT;
-  if (settings && !settings.master_enabled) {
-    return { inApp: false, email: false, push: false, frequency: "never" };
+  if (opts?.force) {
+    return decideChannels({ force: true, masterEnabled: true });
   }
 
-  const frequency = (settings?.email_frequency ??
-    "instant") as ChannelDecision["frequency"];
-  const inApp = channel?.in_app_enabled ?? true;
-  const emailEnabled = channel?.email_enabled ?? true;
-  const push = channel?.push_enabled ?? false;
-  const email = emailEnabled && frequency === "instant";
+  const eventKey = eventKeyForNotificationType(notificationType);
 
-  return { inApp, email, push, frequency };
+  try {
+    const [{ data: settings }, { data: channel }] = await Promise.all([
+      supabase
+        .from("communication_settings")
+        .select("master_enabled, email_frequency")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("notification_channel_preferences")
+        .select("email_enabled, in_app_enabled, push_enabled")
+        .eq("user_id", userId)
+        .eq("event_key", eventKey)
+        .maybeSingle(),
+    ]);
+
+    // Tables not migrated yet — keep prior behavior.
+    if (!settings && !channel) return FALLBACK;
+
+    return decideChannels({
+      masterEnabled: settings?.master_enabled,
+      emailFrequency: settings?.email_frequency,
+      emailEnabled: channel?.email_enabled,
+      inAppEnabled: channel?.in_app_enabled,
+      pushEnabled: channel?.push_enabled,
+    });
+  } catch {
+    return FALLBACK;
+  }
 }
 
 export async function resolveRecipientEmail(
@@ -60,3 +65,5 @@ export async function resolveRecipientEmail(
 ): Promise<string | null> {
   return lookupUserEmail(userId);
 }
+
+export { decideChannels, eventKeyForNotificationType };

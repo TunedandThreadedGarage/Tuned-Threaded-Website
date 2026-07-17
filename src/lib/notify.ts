@@ -63,6 +63,7 @@ export async function createNotification(
         message: input.message,
         href: input.href,
         actorName,
+        skipPreferenceCheck: true,
       });
     } catch {
       // Email is best-effort; never fail the primary action.

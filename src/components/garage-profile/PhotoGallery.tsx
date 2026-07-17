@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { GarageAlbum, GaragePhoto } from "@/types/database";
 import { BeforeAfterCompare } from "@/components/garage-profile/BeforeAfterCompare";
 import { ReportButton } from "@/features/moderation/components/ReportButton";
+import { GalleryLikeButton } from "@/features/gallery/components/GalleryLikeButton";
 
 export function PhotoGallery({
   albums,
@@ -63,8 +64,9 @@ export function PhotoGallery({
                         {photo.caption}
                       </figcaption>
                     ) : null}
-                    {ownerUserId ? (
-                      <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="absolute right-1 top-1 flex flex-col items-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <GalleryLikeButton photoId={photo.id} />
+                      {ownerUserId ? (
                         <ReportButton
                           targetType="gallery_photo"
                           targetId={photo.id}
@@ -72,8 +74,8 @@ export function PhotoGallery({
                           label="Report"
                           className="bg-black/60 px-2 py-1 text-[10px] text-white hover:text-accent"
                         />
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </figure>
                 ))}
               </div>

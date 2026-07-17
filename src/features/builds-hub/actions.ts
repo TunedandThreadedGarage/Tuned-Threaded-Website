@@ -852,6 +852,13 @@ export async function toggleTimelineLike(
 ): Promise<ActionResult> {
   try {
     const { supabase, user } = await requireUser();
+    const { data: build } = await supabase
+      .from("builds")
+      .select("id, user_id, title, cover_photo_url")
+      .eq("id", buildId)
+      .maybeSingle();
+    if (!build) return { error: "Build not found." };
+
     const { data: existing } = await supabase
       .from("build_timeline_likes")
       .select("*")
@@ -869,6 +876,22 @@ export async function toggleTimelineLike(
         entry_id: entryId,
         user_id: user.id,
       });
+
+      if (build.user_id !== user.id) {
+        const { actorLabel, createNotification } = await import("@/lib/notify");
+        const who = await actorLabel(supabase, user.id);
+        await createNotification(supabase, {
+          userId: build.user_id,
+          actorId: user.id,
+          type: "build_like",
+          message: `${who} liked a journal update on “${build.title}”`,
+          action: "liked your build journal",
+          entityType: "build",
+          entityId: buildId,
+          href: `/builds/${buildId}`,
+          thumbnailUrl: build.cover_photo_url ?? null,
+        });
+      }
     }
     revalidatePath(`/builds/${buildId}`);
     return { success: true };

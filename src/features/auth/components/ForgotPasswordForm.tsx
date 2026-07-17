@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import {
-  signInWithEmail,
+  requestPasswordReset,
   type AuthResult,
 } from "@/features/auth/actions";
 import { FormField } from "@/components/ui/FormField";
@@ -15,36 +15,28 @@ function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="primary" className="w-full" disabled={pending}>
-      {pending ? "Signing in…" : "Sign in"}
+      {pending ? "Sending…" : "Send reset link"}
     </Button>
   );
 }
 
-export function SignInForm({ next = "/garage" }: { next?: string }) {
-  const [state, action] = useActionState(signInWithEmail, initial);
+export function ForgotPasswordForm() {
+  const [state, action] = useActionState(requestPasswordReset, initial);
 
   return (
     <form action={action} className="space-y-4">
-      <input type="hidden" name="next" value={next} />
       <FormField label="Email" name="email" type="email" autoComplete="email" required />
-      <FormField
-        label="Password"
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        required
-      />
       {state.error ? (
         <p className="text-sm text-accent" role="alert">
           {state.error}
         </p>
       ) : null}
+      {state.message ? (
+        <p className="text-sm text-text-muted" role="status">
+          {state.message}
+        </p>
+      ) : null}
       <SubmitButton />
-      <p className="text-center text-xs text-text-muted">
-        <a href="/garage/forgot-password" className="underline hover:text-text">
-          Forgot password?
-        </a>
-      </p>
     </form>
   );
 }

@@ -97,3 +97,69 @@ export async function deleteAlbum(albumId: string): Promise<ActionResult> {
     return { error: e instanceof Error ? e.message : "Failed." };
   }
 }
+
+export async function toggleGalleryPhotoLike(
+  photoId: string,
+): Promise<{ liked: boolean; error?: string }> {
+  try {
+    const { supabase, user } = await requireUser();
+    const { data: photo } = await supabase
+      .from("garage_photos")
+      .select("id, user_id, album_id")
+      .eq("id", photoId)
+      .maybeSingle();
+    if (!photo) return { liked: false, error: "Photo not found." };
+
+    const { data: existing } = await supabase
+      .from("garage_photo_likes")
+      .select("photo_id")
+      .eq("photo_id", photoId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("garage_photo_likes")
+        .delete()
+        .eq("photo_id", photoId)
+        .eq("user_id", user.id);
+      revalidatePath("/garage/gallery");
+      return { liked: false };
+    }
+
+    await supabase.from("garage_photo_likes").insert({
+      photo_id: photoId,
+      user_id: user.id,
+    });
+
+    if (photo.user_id !== user.id) {
+      const { actorLabel, createNotification } = await import("@/lib/notify");
+      const who = await actorLabel(supabase, user.id);
+      const { data: owner } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", photo.user_id)
+        .maybeSingle();
+      await createNotification(supabase, {
+        userId: photo.user_id,
+        actorId: user.id,
+        type: "gallery_like",
+        message: `${who} liked your gallery photo`,
+        action: "liked your gallery photo",
+        entityType: "gallery_photo",
+        entityId: photoId,
+        href: owner?.username
+          ? `/garage/${owner.username}/gallery`
+          : "/garage?tab=gallery",
+      });
+    }
+
+    revalidatePath("/garage/gallery");
+    return { liked: true };
+  } catch (e) {
+    return {
+      liked: false,
+      error: e instanceof Error ? e.message : "Failed.",
+    };
+  }
+}

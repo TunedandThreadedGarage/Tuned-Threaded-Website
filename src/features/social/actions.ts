@@ -210,6 +210,13 @@ export async function markNotificationRead(id: string): Promise<ActionResult> {
 export async function toggleTimelineLike(entryId: string): Promise<ActionResult> {
   try {
     const { supabase, user } = await requireUser();
+    const { data: entry } = await supabase
+      .from("vehicle_timeline_entries")
+      .select("id, user_id, vehicle_id")
+      .eq("id", entryId)
+      .maybeSingle();
+    if (!entry) return { error: "Entry not found." };
+
     const { data: existing } = await supabase
       .from("timeline_entry_likes")
       .select("*")
@@ -228,6 +235,27 @@ export async function toggleTimelineLike(entryId: string): Promise<ActionResult>
         entry_id: entryId,
         user_id: user.id,
       });
+
+      if (entry.user_id !== user.id) {
+        const who = await actorLabel(supabase, user.id);
+        const { data: owner } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", entry.user_id)
+          .maybeSingle();
+        await createNotification(supabase, {
+          userId: entry.user_id,
+          actorId: user.id,
+          type: "journal_like",
+          message: `${who} liked your journal entry`,
+          action: "liked your journal entry",
+          entityType: "vehicle_timeline_entry",
+          entityId: entryId,
+          href: owner?.username
+            ? `/garage/${owner.username}/vehicles/${entry.vehicle_id}`
+            : "/garage",
+        });
+      }
     }
     return { success: true };
   } catch (e) {
@@ -245,6 +273,13 @@ export async function addTimelineComment(
     const body = String(formData.get("body") ?? "").trim();
     if (!entryId || !body) return { error: "Comment cannot be empty." };
 
+    const { data: entry } = await supabase
+      .from("vehicle_timeline_entries")
+      .select("id, user_id, vehicle_id")
+      .eq("id", entryId)
+      .maybeSingle();
+    if (!entry) return { error: "Entry not found." };
+
     const { error } = await supabase.from("timeline_entry_comments").insert({
       entry_id: entryId,
       user_id: user.id,
@@ -252,6 +287,28 @@ export async function addTimelineComment(
     });
     if (error) return { error: error.message };
     await evaluateAndAwardBadges(supabase, user.id);
+
+    if (entry.user_id !== user.id) {
+      const who = await actorLabel(supabase, user.id);
+      const { data: owner } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", entry.user_id)
+        .maybeSingle();
+      await createNotification(supabase, {
+        userId: entry.user_id,
+        actorId: user.id,
+        type: "journal_comment",
+        message: `${who} commented on your journal entry`,
+        action: "commented on your journal entry",
+        entityType: "vehicle_timeline_entry",
+        entityId: entryId,
+        href: owner?.username
+          ? `/garage/${owner.username}/vehicles/${entry.vehicle_id}`
+          : "/garage",
+      });
+    }
+
     return { success: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed." };

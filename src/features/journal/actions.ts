@@ -160,6 +160,15 @@ export async function toggleJournalLike(journalId: string): Promise<{
 }> {
   try {
     const { supabase, user } = await requireUser();
+    const { data: entry } = await supabase
+      .from("journal_entries")
+      .select("id, user_id")
+      .eq("id", journalId)
+      .maybeSingle();
+    if (!entry) {
+      return { liked: false, likeCount: 0, error: "Entry not found." };
+    }
+
     const { data: existing } = await supabase
       .from("journal_likes")
       .select("journal_id")
@@ -178,6 +187,28 @@ export async function toggleJournalLike(journalId: string): Promise<{
         journal_id: journalId,
         user_id: user.id,
       });
+
+      if (entry.user_id !== user.id) {
+        const { actorLabel, createNotification } = await import("@/lib/notify");
+        const who = await actorLabel(supabase, user.id);
+        const { data: author } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", entry.user_id)
+          .maybeSingle();
+        await createNotification(supabase, {
+          userId: entry.user_id,
+          actorId: user.id,
+          type: "journal_like",
+          message: `${who} liked your journal entry`,
+          action: "liked your journal entry",
+          entityType: "journal_entry",
+          entityId: journalId,
+          href: author?.username
+            ? `/garage/${author.username}?tab=journal`
+            : "/journal",
+        });
+      }
     }
 
     const { count } = await supabase
@@ -206,6 +237,13 @@ export async function addJournalComment(
     const body = String(formData.get("body") ?? "").trim();
     if (!journal_id || !body) return { error: "Comment required." };
 
+    const { data: entry } = await supabase
+      .from("journal_entries")
+      .select("id, user_id")
+      .eq("id", journal_id)
+      .maybeSingle();
+    if (!entry) return { error: "Entry not found." };
+
     const { data: inserted, error } = await supabase
       .from("journal_comments")
       .insert({
@@ -226,6 +264,28 @@ export async function addJournalComment(
       userId: user.id,
       body,
     });
+
+    if (entry.user_id !== user.id) {
+      const { actorLabel, createNotification } = await import("@/lib/notify");
+      const who = await actorLabel(supabase, user.id);
+      const { data: author } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", entry.user_id)
+        .maybeSingle();
+      await createNotification(supabase, {
+        userId: entry.user_id,
+        actorId: user.id,
+        type: "journal_comment",
+        message: `${who} commented on your journal entry`,
+        action: "commented on your journal entry",
+        entityType: "journal_entry",
+        entityId: journal_id,
+        href: author?.username
+          ? `/garage/${author.username}?tab=journal`
+          : "/journal",
+      });
+    }
 
     revalidatePath("/journal");
     return { success: true };

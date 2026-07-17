@@ -9,6 +9,79 @@ import { siteUrl } from "@/lib/email/brand";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySupabase = any;
 
+function resolveTemplate(input: {
+  type: string;
+  message: string;
+  href: string;
+  actor: string;
+}) {
+  const { type, message, href, actor } = input;
+  switch (type) {
+    case "follow":
+    case "garage_follow":
+      return templates.newFollower(actor, href);
+    case "build_follow":
+      return templates.buildFollowed(actor, "your build", href);
+    case "build_like":
+    case "like":
+      return templates.buildLiked(actor, "your build", href);
+    case "post_like":
+      return templates.postLiked(actor, href);
+    case "journal_like":
+      return templates.journalLiked(actor, href);
+    case "gallery_like":
+      return templates.galleryLiked(actor, href);
+    case "comment":
+    case "build_comment":
+      return templates.someoneCommented(actor, "your content", href);
+    case "journal_comment":
+      return templates.someoneCommented(actor, "your journal entry", href);
+    case "gallery_comment":
+      return templates.someoneCommented(actor, "your gallery photo", href);
+    case "reply":
+    case "build_reply":
+      return templates.someoneReplied(actor, href);
+    case "mention":
+      return templates.someoneMentioned(actor, href);
+    case "post_share":
+      return templates.buildShared(actor, "your post", href);
+    case "build_trending":
+      return templates.buildFeatured("your build", href);
+    case "garage_featured":
+      return templates.garageFeatured(href);
+    case "marketplace_inquiry":
+      return templates.newMessage(actor, href);
+    case "message":
+      return templates.newMessage(actor, href);
+    case "message_request":
+      return templates.messageRequest(actor, href);
+    case "badge_earned":
+      return templates.badgeEarned(message.replace(/^.*:\s*/, "") || "Badge", href);
+    case "build_milestone":
+      return templates.buildMilestone("your build", message, href);
+    case "order_update":
+    case "order_confirmation":
+    case "order_shipped":
+    case "order_delivered":
+    case "shipping_update":
+      return {
+        subject: message.slice(0, 80) || "Order update",
+        html: templates.shippingUpdate(message, href).html,
+      };
+    case "vehicle_tag":
+      return templates.someoneMentioned(actor, href);
+    case "event_invite":
+      return templates.someoneMentioned(actor, href);
+    case "build_save":
+      return templates.buildLiked(actor, "your build", href);
+    default:
+      return {
+        subject: message.slice(0, 80) || "Tuned & Threaded activity",
+        html: templates.someoneCommented(actor, "your garage", href).html,
+      };
+  }
+}
+
 /** Map notification types to branded templates and send if prefs allow. */
 export async function dispatchNotificationEmail(
   supabase: AnySupabase,
@@ -18,14 +91,18 @@ export async function dispatchNotificationEmail(
     message: string;
     href?: string | null;
     actorName?: string | null;
+    /** Skip preference check when already validated by caller. */
+    skipPreferenceCheck?: boolean;
   },
 ): Promise<void> {
-  const decision = await getChannelDecision(
-    supabase,
-    input.userId,
-    input.type,
-  );
-  if (!decision.email) return;
+  if (!input.skipPreferenceCheck) {
+    const decision = await getChannelDecision(
+      supabase,
+      input.userId,
+      input.type,
+    );
+    if (!decision.email) return;
+  }
 
   const to = await resolveRecipientEmail(input.userId);
   if (!to) return;
@@ -34,58 +111,34 @@ export async function dispatchNotificationEmail(
     ? input.href
     : `${siteUrl()}${input.href || "/notifications"}`;
   const actor = input.actorName ?? "Someone";
-
-  let tpl = templates.someoneCommented(actor, "your content", href);
-  switch (input.type) {
-    case "follow":
-    case "garage_follow":
-      tpl = templates.newFollower(actor, href);
-      break;
-    case "build_follow":
-      tpl = templates.buildFollowed(actor, "your build", href);
-      break;
-    case "build_like":
-    case "like":
-      tpl = templates.buildLiked(actor, "your build", href);
-      break;
-    case "post_like":
-      tpl = templates.postLiked(actor, href);
-      break;
-    case "comment":
-    case "build_comment":
-      tpl = templates.someoneCommented(actor, "your content", href);
-      break;
-    case "reply":
-    case "build_reply":
-      tpl = templates.someoneReplied(actor, href);
-      break;
-    case "mention":
-      tpl = templates.someoneMentioned(actor, href);
-      break;
-    case "post_share":
-      tpl = templates.buildShared(actor, "your post", href);
-      break;
-    case "build_trending":
-      tpl = templates.buildFeatured("your build", href);
-      break;
-    case "garage_featured":
-      tpl = templates.garageFeatured(href);
-      break;
-    case "marketplace_inquiry":
-      tpl = templates.newMessage(actor, href);
-      break;
-    default:
-      tpl = {
-        subject: input.message.slice(0, 80) || "Tuned & Threaded activity",
-        html: templates.someoneCommented(actor, "your garage", href).html,
-      };
-  }
+  const tpl = resolveTemplate({
+    type: input.type,
+    message: input.message,
+    href,
+    actor,
+  });
 
   await sendEmail({ to, subject: tpl.subject, html: tpl.html });
 }
 
 export async function sendWelcomeEmail(to: string): Promise<void> {
   const tpl = templates.welcome();
+  await sendEmail({ to, subject: tpl.subject, html: tpl.html, force: true });
+}
+
+export async function sendVerifyEmail(
+  to: string,
+  verifyUrl: string,
+): Promise<void> {
+  const tpl = templates.verifyEmail(verifyUrl);
+  await sendEmail({ to, subject: tpl.subject, html: tpl.html, force: true });
+}
+
+export async function sendPasswordResetEmail(
+  to: string,
+  resetUrl: string,
+): Promise<void> {
+  const tpl = templates.passwordReset(resetUrl);
   await sendEmail({ to, subject: tpl.subject, html: tpl.html, force: true });
 }
 
@@ -127,8 +180,33 @@ export async function sendOrderEmail(
     tracking?: string;
     carrier?: string;
     status?: string;
+    userId?: string;
+    /** When provided, honor the orders preference (except paymentFailed). */
+    supabase?: AnySupabase;
   },
 ): Promise<void> {
+  // Payment failures stay mandatory; other order mail respects prefs when userId given.
+  if (
+    kind !== "paymentFailed" &&
+    meta.userId &&
+    meta.supabase
+  ) {
+    const decision = await getChannelDecision(
+      meta.supabase,
+      meta.userId,
+      kind === "confirmation"
+        ? "order_confirmation"
+        : kind === "shipped"
+          ? "order_shipped"
+          : kind === "delivered"
+            ? "order_delivered"
+            : kind === "shippingUpdate"
+              ? "shipping_update"
+              : "order_update",
+    );
+    if (!decision.email) return;
+  }
+
   const href = `${siteUrl()}/garage/orders`;
   const label = meta.label ?? `Order ${meta.orderId.slice(0, 8)}`;
   const tpl =
@@ -152,5 +230,10 @@ export async function sendOrderEmail(
                   ? templates.paymentFailed(href)
                   : templates.shippingUpdate(meta.status ?? "In transit", href);
 
-  await sendEmail({ to, subject: tpl.subject, html: tpl.html, force: true });
+  await sendEmail({
+    to,
+    subject: tpl.subject,
+    html: tpl.html,
+    force: kind === "paymentFailed",
+  });
 }

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getOAuthProviders } from "@/features/auth/providers";
 import type { Provider } from "@supabase/supabase-js";
 
@@ -49,6 +50,30 @@ export async function signUpWithEmail(
     // Welcome email is best-effort; never block signup.
   }
 
+  // Branded verification when Supabase requires email confirmation.
+  if (!data.session) {
+    try {
+      const admin = createAdminClient();
+      if (admin) {
+        const { data: linkData } = await admin.auth.admin.generateLink({
+          type: "signup",
+          email,
+          password,
+          options: {
+            redirectTo: `${siteUrl()}/auth/callback?next=/garage/onboarding`,
+          },
+        });
+        const verifyUrl = linkData?.properties?.action_link;
+        if (verifyUrl) {
+          const { sendVerifyEmail } = await import("@/lib/email/dispatch");
+          await sendVerifyEmail(email, verifyUrl);
+        }
+      }
+    } catch {
+      // Verification email is best-effort; Supabase may also send its own.
+    }
+  }
+
   // Instant session when "Confirm email" is disabled in Supabase.
   if (data.session) {
     redirect("/garage/onboarding");
@@ -79,6 +104,49 @@ export async function signInWithEmail(
   if (error) return { error: error.message };
 
   redirect(next.startsWith("/") ? next : "/garage");
+}
+
+export async function requestPasswordReset(
+  _prev: AuthResult,
+  formData: FormData,
+): Promise<AuthResult> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Email is required." };
+
+  const redirectTo = `${siteUrl()}/auth/callback?next=/garage/settings/password`;
+
+  try {
+    const admin = createAdminClient();
+    if (admin) {
+      const { data: linkData, error } = await admin.auth.admin.generateLink({
+        type: "recovery",
+        email,
+        options: { redirectTo },
+      });
+      if (error) return { error: error.message };
+      const resetUrl = linkData?.properties?.action_link;
+      if (resetUrl) {
+        const { sendPasswordResetEmail } = await import("@/lib/email/dispatch");
+        await sendPasswordResetEmail(email, resetUrl);
+      }
+    } else {
+      // Fallback when service role is unavailable — uses Supabase mailer.
+      const supabase = await createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      });
+      if (error) return { error: error.message };
+    }
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "Unable to send reset email.",
+    };
+  }
+
+  return {
+    success: true,
+    message: "If an account exists for that email, a reset link is on the way.",
+  };
 }
 
 export async function signOut(): Promise<void> {

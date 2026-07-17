@@ -87,6 +87,46 @@ export const templates = {
     };
   },
 
+  messageRequest(actorName: string, href: string): EmailTemplate {
+    return {
+      subject: `${actorName} sent a message request`,
+      html: emailLayout({
+        preheader: "Review a new message request in your Garage.",
+        title: "Message Request",
+        bodyHtml: p(
+          `<strong style="color:#f2f2f0;">${actorName}</strong> wants to message you. Accept or decline from Message Requests.`,
+        ),
+        cta: { label: "Review request", href },
+      }),
+    };
+  },
+
+  journalLiked(actorName: string, href: string): EmailTemplate {
+    return {
+      subject: `${actorName} liked your journal entry`,
+      html: emailLayout({
+        title: "Journal Like",
+        bodyHtml: p(
+          `<strong style="color:#f2f2f0;">${actorName}</strong> liked your journal entry.`,
+        ),
+        cta: { label: "Open journal", href },
+      }),
+    };
+  },
+
+  galleryLiked(actorName: string, href: string): EmailTemplate {
+    return {
+      subject: `${actorName} liked your gallery photo`,
+      html: emailLayout({
+        title: "Gallery Like",
+        bodyHtml: p(
+          `<strong style="color:#f2f2f0;">${actorName}</strong> liked a photo in your gallery.`,
+        ),
+        cta: { label: "Open gallery", href },
+      }),
+    };
+  },
+
   someoneCommented(actorName: string, context: string, href: string): EmailTemplate {
     return {
       subject: `${actorName} commented`,
