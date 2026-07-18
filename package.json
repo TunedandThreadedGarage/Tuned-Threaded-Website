@@ -8,16 +8,23 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "catalog:render": "node scripts/catalog/render-artwork.mjs",
+    "catalog:preflight": "node scripts/catalog/import-catalog.mjs --preflight",
+    "catalog:import": "node scripts/catalog/import-catalog.mjs",
+    "catalog:import:limit": "node scripts/catalog/import-catalog.mjs --limit=5",
+    "catalog:verify": "node scripts/catalog/verify-launch.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.5",
+    "@vercel/analytics": "^2.0.1",
     "framer-motion": "^12.42.2",
     "next": "16.2.10",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "resend": "^6.17.2"
+    "resend": "^6.17.2",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

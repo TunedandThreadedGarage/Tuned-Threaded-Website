@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit, Manrope, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import "./globals.css";
@@ -42,6 +43,7 @@ export default function RootLayout({
         <AuthProvider>
           <CartProvider>{children}</CartProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
