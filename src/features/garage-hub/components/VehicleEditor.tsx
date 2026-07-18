@@ -107,16 +107,28 @@ export function VehicleEditor({
     return vehicleToDraft(vehicle);
   }, [draftSnapshot, vehicle, editor]);
 
-  useEffect(() => {
+  // Adjust local copies when the server props change (during render, not in
+  // an effect, to avoid cascading renders).
+  const [prevPhotos, setPrevPhotos] = useState(photos);
+  if (prevPhotos !== photos) {
+    setPrevPhotos(photos);
     setLocalPhotos(photos);
+  }
+  const [prevVehicle, setPrevVehicle] = useState(vehicle);
+  if (prevVehicle !== vehicle) {
+    setPrevVehicle(vehicle);
     setCoverUrl(vehicle?.photo_url ?? null);
-  }, [photos, vehicle]);
+  }
+  const [prevActionState, setPrevActionState] = useState(state);
+  if (prevActionState !== state) {
+    setPrevActionState(state);
+    if (state.success) setStatus("Vehicle saved.");
+  }
 
   useEffect(() => {
     if (state.success) {
       setDirty(false);
       setDraftSnapshot(null);
-      setStatus("Vehicle saved.");
       onSaved?.();
       if (editor === "new" && state.id) {
         openEditor(state.id);

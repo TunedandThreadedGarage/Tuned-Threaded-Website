@@ -64,7 +64,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const closeCart = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
-    void refreshCart();
+    void (async () => {
+      await refreshCart();
+    })();
   }, [refreshCart]);
 
   useEffect(() => {
@@ -86,7 +88,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("cart") === "open") {
-      openCart();
+      // Defer so the initial render commits before the drawer state flips.
+      queueMicrotask(() => openCart());
       params.delete("cart");
       const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
       window.history.replaceState({}, "", next);

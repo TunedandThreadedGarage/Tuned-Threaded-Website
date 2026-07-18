@@ -38,9 +38,16 @@ export function NotificationBell() {
     setCount(next);
   }, []);
 
+  // Reset the badge when signed out (during render, not in an effect).
+  const signedOut = !authReady || !userId;
+  const [prevSignedOut, setPrevSignedOut] = useState(signedOut);
+  if (prevSignedOut !== signedOut) {
+    setPrevSignedOut(signedOut);
+    if (signedOut) setCount(0);
+  }
+
   useEffect(() => {
     if (!authReady || !userId) {
-      setCount(0);
       return;
     }
 

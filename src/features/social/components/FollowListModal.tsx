@@ -75,9 +75,16 @@ export function FollowListModal({
     setLoadingMore(false);
   }, [hasMore, loadingMore, pending, username, mode, q]);
 
+  // Clear the search box when the modal opens (during render, not in an
+  // effect, to avoid a cascading render).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
+    if (open) setQ("");
+  }
+
   useEffect(() => {
     if (!open) return;
-    setQ("");
     refresh();
   }, [open, refresh]);
 

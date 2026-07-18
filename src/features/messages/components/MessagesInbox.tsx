@@ -44,9 +44,13 @@ export function MessagesInbox({
   const uid = userId ?? authUserId;
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
-  useEffect(() => {
+  // Adopt fresh server data when the prop changes (during render, not in an
+  // effect, to avoid cascading renders).
+  const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
+  if (prevInitialItems !== initialItems) {
+    setPrevInitialItems(initialItems);
     setItems(initialItems);
-  }, [initialItems]);
+  }
 
   useEffect(() => {
     if (!uid || mode !== "inbox") return;

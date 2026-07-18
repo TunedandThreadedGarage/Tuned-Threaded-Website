@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ensureRealtimeAuth } from "@/lib/supabase/realtime";
@@ -67,9 +68,12 @@ export function SignInForm({ next = "/garage" }: { next?: string }) {
         {pending ? "Signing in…" : "Sign in"}
       </Button>
       <p className="text-center text-xs text-text-muted">
-        <a href="/garage/forgot-password" className="underline hover:text-text">
+        <Link
+          href="/garage/forgot-password"
+          className="underline hover:text-text"
+        >
           Forgot password?
-        </a>
+        </Link>
       </p>
     </form>
   );

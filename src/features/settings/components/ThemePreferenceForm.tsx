@@ -1,22 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 const THEME_KEY = "tt-theme-preference";
 
 type ThemePref = "dark" | "system";
 
-export function ThemePreferenceForm() {
-  const [pref, setPref] = useState<ThemePref>("dark");
-  const [saved, setSaved] = useState(false);
+const emptySubscribe = () => () => {};
 
-  useEffect(() => {
-    const raw = window.localStorage.getItem(THEME_KEY);
-    if (raw === "system" || raw === "dark") setPref(raw);
-  }, []);
+function readStoredPref(): ThemePref {
+  const raw = window.localStorage.getItem(THEME_KEY);
+  return raw === "system" ? "system" : "dark";
+}
+
+export function ThemePreferenceForm() {
+  // Server renders the default; after hydration the stored value is shown.
+  const hydrated = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+  const [override, setOverride] = useState<ThemePref | null>(null);
+  const [saved, setSaved] = useState(false);
+  const pref: ThemePref = override ?? (hydrated ? readStoredPref() : "dark");
 
   function save(next: ThemePref) {
-    setPref(next);
+    setOverride(next);
     window.localStorage.setItem(THEME_KEY, next);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1600);

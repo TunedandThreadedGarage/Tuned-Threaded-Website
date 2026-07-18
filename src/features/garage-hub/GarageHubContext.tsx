@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -85,17 +84,20 @@ export function GarageHubProvider({
     string
   > | null>(null);
 
-  useEffect(() => {
+  // Sync tab/editor from the URL during render (React "adjust state on prop
+  // change" pattern) instead of an effect, avoiding a cascading render.
+  const navKey = `${pathname}|${searchParams.toString()}`;
+  const [prevNavKey, setPrevNavKey] = useState<string | null>(null);
+  if (prevNavKey !== navKey) {
+    setPrevNavKey(navKey);
     const nextTab = tabFromPath(pathname, searchParams.get("tab"));
     setTabState(nextTab);
     if (nextTab === "vehicles") {
       const edit = searchParams.get("edit");
       if (edit) setEditor(edit);
       // Keep in-memory editor when returning without ?edit — draft preservation
-    } else if (searchParams.get("edit")) {
-      // Ignore edit param on other tabs
     }
-  }, [pathname, searchParams]);
+  }
 
   const setTab = useCallback(
     (next: GarageTab) => {

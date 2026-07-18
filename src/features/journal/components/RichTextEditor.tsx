@@ -1,13 +1,13 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+const TOOLBAR_ACTIONS = [
+  { key: "bold", label: "B", command: "bold" },
+  { key: "italic", label: "I", command: "italic" },
+  { key: "ul", label: "• List", command: "insertUnorderedList" },
+  { key: "ol", label: "1. List", command: "insertOrderedList" },
+] as const;
 
 /** Lightweight rich-text field — stores HTML in a hidden input named `body`. */
 export function RichTextEditor({
@@ -42,10 +42,6 @@ export function RichTextEditor({
     sync();
   }
 
-  function onInput(_e: FormEvent<HTMLDivElement>) {
-    sync();
-  }
-
   return (
     <div>
       <label htmlFor={id} className="block text-sm text-text-muted">
@@ -53,21 +49,14 @@ export function RichTextEditor({
       </label>
       <div className="mt-2 overflow-hidden border border-border bg-surface">
         <div className="flex flex-wrap gap-1 border-b border-border px-2 py-1.5">
-          {(
-            [
-              ["bold", "B", () => cmd("bold")],
-              ["italic", "I", () => cmd("italic")],
-              ["ul", "• List", () => cmd("insertUnorderedList")],
-              ["ol", "1. List", () => cmd("insertOrderedList")],
-            ] as const
-          ).map(([key, labelText, onClick]) => (
+          {TOOLBAR_ACTIONS.map((action) => (
             <button
-              key={key}
+              key={action.key}
               type="button"
-              onClick={onClick}
+              onClick={() => cmd(action.command)}
               className="px-2 py-1 text-xs text-text-muted transition-colors hover:bg-white/[0.04] hover:text-text"
             >
-              {labelText}
+              {action.label}
             </button>
           ))}
           <button
@@ -88,7 +77,7 @@ export function RichTextEditor({
           aria-multiline
           contentEditable
           suppressContentEditableWarning
-          onInput={onInput}
+          onInput={sync}
           data-placeholder={placeholder}
           className="min-h-[160px] px-3 py-3 text-sm leading-relaxed text-text outline-none empty:before:pointer-events-none empty:before:text-text-muted empty:before:content-[attr(data-placeholder)]"
         />
